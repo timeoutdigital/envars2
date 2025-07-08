@@ -1,0 +1,27 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0 # Use the latest stable version
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Use the latest Ruff release (e.g., v0.12.2 or newer)
+    # Check https://github.com/astral-sh/ruff-pre-commit/releases for the latest version
+    rev: v0.12.2
+    hooks:
+      - id: ruff-format # Runs Ruff's formatter
+      - id: ruff-check   # Runs Ruff's linter
+        args: [ --fix ]  # Automatically fixes linting issues
+
+  - repo: local # Local hook for 'ty' as it doesn't have an official pre-commit hook yet
+    hooks:
+      - id: ty-check
+        name: ty check
+        entry: uv run ty check . # Assumes 'ty' is installed via uv and 'uv run' is used
+        language: system
+        types: [ python ]
+        pass_filenames: false

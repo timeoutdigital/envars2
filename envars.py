@@ -20,6 +20,7 @@ app = typer.Typer(
 
 console = Console()
 
+
 # Define a callback for the --version option
 def version_callback(value: bool, ctx: typer.Context):
     """Prints the application version and exits if --version is used."""
@@ -28,52 +29,44 @@ def version_callback(value: bool, ctx: typer.Context):
         console.print("[bold]My CLI Version:[/bold] [green]0.1.0[/green]")
         raise typer.Exit()
 
+
 @app.command()
-def hello(
-    name: str = typer.Option(
-        "World", "--name", "-n",
-        help="The name to greet.",
-        show_default=True
-    )
-):
+def hello(name: str = typer.Option("World", "--name", "-n", help="The name to greet.", show_default=True)):
     """Greets the specified name."""
     greet_user(name)
+
 
 @app.command()
 def task(
     steps: int = typer.Option(
-        10, "--steps", "-s",
-        min=1,
-        max=100,
-        help="Number of steps for the simulated task.",
-        show_default=True
-    )
+        10, "--steps", "-s", min=1, max=100, help="Number of steps for the simulated task.", show_default=True
+    ),
 ):
     """Performs a simulated task with a progress bar."""
     perform_task(steps)
 
+
 @app.command()
-def info(
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v",
-        help="Displays verbose information."
-    )
-):
+def info(verbose: bool = typer.Option(False, "--verbose", "-v", help="Displays verbose information.")):
     """Displays information about the CLI."""
     show_info(verbose)
 
+
 @app.callback()
 def main(
-    ctx: typer.Context, # Keep ctx here for potential future global use
+    ctx: typer.Context,  # Keep ctx here for potential future global use
     version: bool = typer.Option(
-        False, "--version", "-V",
+        False,
+        "--version",
+        "-V",
         help="Show the application's version and exit.",
         is_eager=True,
-        callback=version_callback # Use the new callback function
+        callback=version_callback,  # Use the new callback function
     ),
 ):
     """My CLI is a versatile command-line tool for various tasks."""
     pass
+
 
 if __name__ == "__main__":
     app()
