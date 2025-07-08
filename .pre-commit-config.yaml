@@ -15,7 +15,7 @@ repos:
     hooks:
       - id: ruff-format # Runs Ruff's formatter
       - id: ruff-check   # Runs Ruff's linter
-        args: [ --fix ]  # Automatically fixes linting issues
+        args: [ --diff ]
 
   - repo: local # Local hook for 'ty' as it doesn't have an official pre-commit hook yet
     hooks:
