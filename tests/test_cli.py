@@ -797,6 +797,20 @@ environment_variables:
     assert "Variable 'MY_SECRET' is a secret and cannot have a default value." in result.stderr
 
 
+def test_validate_default_secret_fails_with_ignore_flag(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "some-key"
+environment_variables:
+  MY_SECRET:
+    default: !secret "my_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate", "--ignore-default-secrets"])
+    assert result.exit_code == 0
+    assert "Validation successful!" in result.stdout
+
+
 def test_load_from_yaml_invalid_structure(tmp_path):
     initial_content = """
 configuration:

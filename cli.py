@@ -499,6 +499,9 @@ def config_command(
 @app.command(name="validate")
 def validate_command(
     ctx: typer.Context,
+    ignore_default_secrets: bool = typer.Option(
+        False, "--ignore-default-secrets", help="Ignore default secrets during validation."
+    ),
 ):
     """Validates the envars.yml file for logical consistency."""
     manager = ctx.obj
@@ -522,9 +525,10 @@ def validate_command(
                 errors.append(f"Variable '{var_name}' is missing a description.")
 
     # Check for default secrets
-    for vv in manager.variable_values:
-        if isinstance(vv.value, Secret) and vv.scope_type == "DEFAULT":
-            errors.append(f"Variable '{vv.variable_name}' is a secret and cannot have a default value.")
+    if not ignore_default_secrets:
+        for vv in manager.variable_values:
+            if isinstance(vv.value, Secret) and vv.scope_type == "DEFAULT":
+                errors.append(f"Variable '{vv.variable_name}' is a secret and cannot have a default value.")
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")
