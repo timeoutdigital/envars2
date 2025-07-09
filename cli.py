@@ -24,6 +24,9 @@ def init_envars(
     loc: str = typer.Option(..., "--loc", "-l", help="Comma-separated list of locations in name:id format."),
     kms_key: str = typer.Option(None, "--kms-key", "-k", help="Global KMS key."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing envars.yml file."),
+    description_mandatory: bool = typer.Option(
+        False, "--description-mandatory", help="Require descriptions for all variables."
+    ),
 ):
     """Initializes a new envars.yml file."""
     assert ctx.parent is not None
@@ -33,7 +36,7 @@ def init_envars(
         error_console.print(f"[bold red]Error:[/] {file_path} already exists. Use --force to overwrite.")
         raise typer.Exit(code=1)
 
-    manager = VariableManager(app=app_name, kms_key=kms_key)
+    manager = VariableManager(app=app_name, kms_key=kms_key, description_mandatory=description_mandatory)
 
     environments = [e.strip() for e in env.split(",")]
     for env_name in environments:
@@ -86,6 +89,7 @@ def add_env_var(
     env: str = typer.Option(None, "--env", "-e", help="Environment name."),
     loc: str = typer.Option(None, "--loc", "-l", help="Location name."),
     secret: bool = typer.Option(False, "--secret", "-s", help="Encrypt the variable value."),
+    description: str = typer.Option(None, "--description", "-d", help="Description for the variable."),
 ):
     """Adds or updates an environment variable in the envars.yml file."""
     manager = ctx.obj
@@ -104,7 +108,12 @@ def add_env_var(
 
     # Ensure variable exists
     if var_name not in manager.variables:
-        manager.add_variable(Variable(name=var_name))
+        if manager.description_mandatory and not description:
+            error_console.print(f"[bold red]Error:[/] Description is mandatory for new variable '{var_name}'.")
+            raise typer.Exit(code=1)
+        manager.add_variable(Variable(name=var_name, description=description))
+    elif description:
+        manager.variables[var_name].description = description
 
     if secret:
         if not manager.kms_key:
@@ -434,6 +443,12 @@ def validate_command(
     for var_name in manager.variables:
         if var_name.upper() != var_name:
             errors.append(f"Variable name '{var_name}' must be uppercase.")
+
+    # Check for missing descriptions if mandatory
+    if manager.description_mandatory:
+        for var_name, var in manager.variables.items():
+            if not var.description:
+                errors.append(f"Variable '{var_name}' is missing a description.")
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")

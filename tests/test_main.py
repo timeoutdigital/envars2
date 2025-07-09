@@ -86,6 +86,7 @@ def test_write_envars_yml_full_config(tmp_path):
 configuration:
   app: null
   kms_key: null
+  description_mandatory: false
   environments:
   - dev
   - prod

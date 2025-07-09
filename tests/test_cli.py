@@ -33,6 +33,7 @@ def test_init_command(tmp_path):
             "dev,prod",
             "--loc",
             "aws:123,gcp:456",
+            "--description-mandatory",
         ],
     )
     assert result.exit_code == 0
@@ -43,6 +44,27 @@ def test_init_command(tmp_path):
     assert data["configuration"]["environments"] == ["dev", "prod"]
     assert {"aws": "123"} in data["configuration"]["locations"]
     assert {"gcp": "456"} in data["configuration"]["locations"]
+    assert data["configuration"]["description_mandatory"] is True
+
+    # Test with default value (False)
+    file_path_default = tmp_path / "envars_default.yml"
+    result = runner.invoke(
+        app,
+        [
+            "--file",
+            str(file_path_default),
+            "init",
+            "--app",
+            "MyApp",
+            "--env",
+            "dev,prod",
+            "--loc",
+            "aws:123,gcp:456",
+        ],
+    )
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path_default)
+    assert data["configuration"]["description_mandatory"] is False
 
 
 def test_add_default_variable(tmp_path):
@@ -650,6 +672,34 @@ environment_variables:
     result = runner.invoke(app, ["--file", file_path, "print"])
     assert result.exit_code == 1
     assert "Variable name 'my_var' must be uppercase." in result.stderr
+
+
+def test_add_variable_description_mandatory(tmp_path):
+    initial_content = """
+configuration:
+  description_mandatory: true
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=my_value"])
+    assert result.exit_code == 1
+    assert "Description is mandatory for new variable 'MY_VAR'." in result.stderr
+
+    result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=my_value", "--description", "My description"])
+    assert result.exit_code == 0
+
+
+def test_validate_command_description_mandatory(tmp_path):
+    initial_content = """
+configuration:
+  description_mandatory: true
+environment_variables:
+  MY_VAR:
+    default: "my_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 1
+    assert "Variable 'MY_VAR' is missing a description." in result.stderr
 
 
 def test_load_from_yaml_invalid_structure(tmp_path):

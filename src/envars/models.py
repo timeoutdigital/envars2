@@ -165,13 +165,14 @@ class VariableManager:
     In a real application, this would interact with a database.
     """
 
-    def __init__(self, app: str | None = None, kms_key: str | None = None):
+    def __init__(self, app: str | None = None, kms_key: str | None = None, description_mandatory: bool = False):
         self.app = app
         self.variables: dict[str, Variable] = {}
         self.environments: dict[str, Environment] = {}
         self.locations: dict[str, Location] = {}
         self.variable_values: list[VariableValue] = []
         self.kms_key = kms_key
+        self.description_mandatory = description_mandatory
 
     def add_variable(self, variable: Variable):
         """Adds a Variable to the manager."""
