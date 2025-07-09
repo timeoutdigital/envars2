@@ -166,6 +166,39 @@ envars2 print [OPTIONS]
   envars2 print --env prod --loc aws --decrypt
   ```
 
+**Output Examples:**
+
+- Default tree view (`envars2 print`):
+  ```
+  Envars Configuration
+  ├── App: my-app
+  ├── KMS Key: arn:aws:kms:us-east-1:123456789012:key/mrk-12345
+  ├── Environments
+  │   ├── dev
+  │   └── prod
+  ├── Locations
+  │   ├── aws (id: 123456789012)
+  │   └── gcp (id: projects/my-gcp-project)
+  └── Variables
+      ├── API_KEY - API key for a third-party service.
+      │   ├── (Scope: DEFAULT) Value: default-key
+      │   ├── (Scope: ENVIRONMENT, Env: dev) Value: dev-key
+      │   ├── (Scope: SPECIFIC, Env: prod, Loc: aws) Value: !secret encrypted-aws-key
+      │   └── (Scope: SPECIFIC, Env: prod, Loc: gcp) Value: !secret encrypted-gcp-key
+      ├── DB_HOST - Database host.
+      │   ├── (Scope: DEFAULT) Value: localhost
+      │   └── (Scope: ENVIRONMENT, Env: prod) Value: db.my-app.com
+      └── DEBUG - Enable debug mode.
+          ├── (Scope: DEFAULT) Value: false
+          └── (Scope: ENVIRONMENT, Env: dev) Value: true
+  ```
+- `VAR=value` format (`envars2 print --env dev --loc aws`):
+  ```
+  API_KEY=dev-key
+  DB_HOST=localhost
+  DEBUG=true
+  ```
+
 ### `exec`
 
 Execute a command with the resolved environment variables.
@@ -196,6 +229,15 @@ envars2 yaml --loc <location> [OPTIONS]
 
 ```bash
 envars2 yaml --loc aws --env dev
+```
+
+**Output Example:**
+
+```yaml
+envars:
+  API_KEY: dev-key
+  DB_HOST: localhost
+  DEBUG: true
 ```
 
 ### `set-systemd-env`
