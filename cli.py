@@ -367,7 +367,17 @@ def exec_command(
         None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
     ),
 ):
-    """Populates the environment and executes a command."""
+    """Execute a command with the environment populated from the specified context.
+
+    This command resolves variables based on the provided --env and --loc,
+    populates the current shell's environment with these variables, and then
+    executes the specified command. Secrets are automatically decrypted.
+
+    Use '--' to separate the options for this command from the command you want to execute.
+
+    Example:
+      envars2 exec --env dev --loc aws -- my_script.py --some-arg
+    """
     manager = ctx.obj
     resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
 
