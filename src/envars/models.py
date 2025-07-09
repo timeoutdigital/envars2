@@ -165,7 +165,8 @@ class VariableManager:
     In a real application, this would interact with a database.
     """
 
-    def __init__(self, kms_key: str | None = None):
+    def __init__(self, app: str | None = None, kms_key: str | None = None):
+        self.app = app
         self.variables: dict[str, Variable] = {}
         self.environments: dict[str, Environment] = {}
         self.locations: dict[str, Location] = {}
@@ -296,7 +297,7 @@ class VariableManager:
 
 # --- Example Usage ---
 if __name__ == "__main__":
-    manager = VariableManager()
+    manager = VariableManager(app="ExampleApp")
 
     # 1. Define Variables
     api_key_var = Variable(name="API_KEY", description="API Key for external service")

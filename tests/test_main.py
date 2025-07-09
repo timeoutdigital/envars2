@@ -84,6 +84,7 @@ def test_write_envars_yml_full_config(tmp_path):
 
     expected_yaml = """
 configuration:
+  app: null
   kms_key: null
   environments:
   - dev

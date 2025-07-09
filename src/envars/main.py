@@ -34,7 +34,8 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
     # Load global KMS key
     kms_key = data.get("configuration", {}).get("kms_key")
-    manager = VariableManager(kms_key=kms_key)
+    app = data.get("configuration", {}).get("app")
+    manager = VariableManager(app=app, kms_key=kms_key)
 
     # Load environments
     for env_name in data.get("configuration", {}).get("environments", []):
@@ -131,6 +132,7 @@ def write_envars_yml(manager: VariableManager, file_path: str):
 
     data = {
         "configuration": {
+            "app": manager.app,
             "kms_key": manager.kms_key,
             "environments": sorted(list(manager.environments.keys())),
             "accounts": accounts_data,
@@ -233,6 +235,8 @@ if __name__ == "__main__":
         manager = load_from_yaml("envars.yml")
 
         print("--- Loaded Data ---")
+        print(f"App: {manager.app}")
+        print(f"KMS Key: {manager.kms_key}")
         print(f"Total VariableValues loaded: {len(manager.variable_values)}")
         print("Variables:", list(manager.variables.keys()))
         print("Environments:", list(manager.environments.keys()))

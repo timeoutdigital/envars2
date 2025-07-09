@@ -125,6 +125,12 @@ def print_envars(
     manager = ctx.obj
     tree = Tree("[bold green]Envars Configuration[/]")
 
+    # App and KMS Key
+    if manager.app:
+        tree.add(f"[bold blue]App:[/] {manager.app}")
+    if manager.kms_key:
+        tree.add(f"[bold blue]KMS Key:[/] {manager.kms_key}")
+
     # Environments
     if not env and not loc:
         env_tree = tree.add("[bold blue]Environments[/]")
