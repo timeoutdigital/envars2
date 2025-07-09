@@ -4,7 +4,7 @@ import json
 from google.cloud import kms_v1
 
 
-class KMSAgent:
+class GCPKMSAgent:
     """A class to handle Google Cloud KMS operations."""
 
     def __init__(self):

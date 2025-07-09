@@ -1,7 +1,7 @@
 import base64
 from unittest.mock import MagicMock
 
-from src.envars.aws_kms import KMSAgent
+from src.envars.aws_kms import AWSKMSAgent
 
 
 def test_encrypt(monkeypatch):
@@ -10,7 +10,7 @@ def test_encrypt(monkeypatch):
     mock_kms_client.encrypt.return_value = {"CiphertextBlob": b"encrypted_data"}
     monkeypatch.setattr("boto3.client", lambda *args, **kwargs: mock_kms_client)
 
-    agent = KMSAgent(region_name="us-east-1")
+    agent = AWSKMSAgent(region_name="us-east-1")
     encrypted_data = agent.encrypt(
         data="test_data",
         key_id="test_key",
@@ -31,7 +31,7 @@ def test_decrypt(monkeypatch):
     mock_kms_client.decrypt.return_value = {"Plaintext": b"decrypted_data"}
     monkeypatch.setattr("boto3.client", lambda *args, **kwargs: mock_kms_client)
 
-    agent = KMSAgent(region_name="us-east-1")
+    agent = AWSKMSAgent(region_name="us-east-1")
     decrypted_data = agent.decrypt(
         encrypted_data=base64.b64encode(b"encrypted_data").decode("utf-8"),
         encryption_context={"app": "test_app", "env": "dev", "loc": "test_loc"},

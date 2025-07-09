@@ -94,7 +94,7 @@ class VariableValue:
     def __init__(
         self,
         variable_name: str,
-        value: str,
+        value: Any,
         scope_type: str,
         environment_name: str | None = None,
         location_id: str | None = None,

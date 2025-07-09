@@ -4,7 +4,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-class KMSAgent:
+class AWSKMSAgent:
     """A class to handle AWS KMS operations."""
 
     def __init__(self, region_name: str | None = None):

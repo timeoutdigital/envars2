@@ -13,6 +13,19 @@ class DuplicateKeyError(Exception):
     pass
 
 
+class Secret(str):
+    pass
+
+
+def secret_representer(dumper, data):
+    return dumper.represent_scalar("!secret", str(data), style="|")
+
+
+def secret_constructor(loader, node):
+    value = loader.construct_scalar(node)
+    return Secret(value)
+
+
 class SafeLoaderWithDuplicatesCheck(yaml.SafeLoader):
     def construct_mapping(self, node, deep=False):
         mapping = {}
@@ -26,6 +39,7 @@ class SafeLoaderWithDuplicatesCheck(yaml.SafeLoader):
 
 def load_from_yaml(file_path: str) -> VariableManager:
     """Loads variables, environments, locations, and values from a YAML file."""
+    yaml.add_constructor("!secret", secret_constructor, Loader=SafeLoaderWithDuplicatesCheck)
     with open(file_path) as f:
         data = yaml.load(f, Loader=SafeLoaderWithDuplicatesCheck)
 
@@ -123,6 +137,7 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
 def write_envars_yml(manager: VariableManager, file_path: str):
     """Writes the VariableManager data to a YAML file."""
+    yaml.add_representer(Secret, secret_representer, Dumper=yaml.Dumper)
     locations_data = []
     for loc in sorted(manager.locations.values(), key=lambda x: x.name):
         if loc.kms_key:
@@ -134,7 +149,7 @@ def write_envars_yml(manager: VariableManager, file_path: str):
         "configuration": {
             "app": manager.app,
             "kms_key": manager.kms_key,
-            "environments": sorted(list(manager.environments.keys())),
+            "environments": sorted(manager.environments.keys()),
             "locations": locations_data,
         },
         "environment_variables": {},

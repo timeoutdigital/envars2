@@ -2,7 +2,7 @@ import base64
 import json
 from unittest.mock import MagicMock
 
-from src.envars.gcp_kms import KMSAgent
+from src.envars.gcp_kms import GCPKMSAgent
 
 
 def test_encrypt(monkeypatch):
@@ -11,7 +11,7 @@ def test_encrypt(monkeypatch):
     mock_kms_client.encrypt.return_value.ciphertext = b"encrypted_data"
     monkeypatch.setattr("google.cloud.kms_v1.KeyManagementServiceClient", lambda: mock_kms_client)
 
-    agent = KMSAgent()
+    agent = GCPKMSAgent()
     encrypted_data = agent.encrypt(
         data="test_data",
         key_path="test_key_path",
@@ -37,7 +37,7 @@ def test_decrypt(monkeypatch):
     mock_kms_client.decrypt.return_value.plaintext = b"decrypted_data"
     monkeypatch.setattr("google.cloud.kms_v1.KeyManagementServiceClient", lambda: mock_kms_client)
 
-    agent = KMSAgent()
+    agent = GCPKMSAgent()
     decrypted_data = agent.decrypt(
         encrypted_data=base64.b64encode(b"encrypted_data").decode("utf-8"),
         key_path="test_key_path",

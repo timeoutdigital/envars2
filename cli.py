@@ -4,7 +4,9 @@ import typer
 from rich.console import Console
 from rich.tree import Tree
 
-from src.envars.main import load_from_yaml, write_envars_yml
+from src.envars.aws_kms import AWSKMSAgent
+from src.envars.gcp_kms import GCPKMSAgent
+from src.envars.main import Secret, load_from_yaml, write_envars_yml
 from src.envars.models import Environment, Location, Variable, VariableManager, VariableValue
 
 app = typer.Typer()
@@ -37,16 +39,16 @@ def init_envars(
         try:
             name, loc_id = loc_item.split(":", 1)
             manager.add_location(Location(name=name, location_id=loc_id))
-        except ValueError:
+        except ValueError as e:
             error_console.print(f"[bold red]Error:[/] Invalid location format: {loc_item}. Use name:id.")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
 
     try:
         write_envars_yml(manager, file_path)
         console.print(f"[bold green]Successfully initialized {file_path}[/]")
     except Exception as e:
         error_console.print(f"[bold red]Error writing to envars file:[/] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.callback(invoke_without_command=True)
@@ -64,12 +66,12 @@ def main(
     try:
         manager = load_from_yaml(file_path)
         ctx.obj = manager
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         error_console.print(f"[bold red]Error:[/] {file_path} not found. Use 'init' to create a new file.")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_console.print(f"[bold red]Error loading envars file:[/] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command(name="add")
@@ -78,20 +80,50 @@ def add_env_var(
     var_assignment: str = typer.Argument(..., help="Variable assignment in VAR=value format."),
     env: str = typer.Option(None, "--env", "-e", help="Environment name."),
     loc: str = typer.Option(None, "--loc", "-l", help="Location name."),
+    secret: bool = typer.Option(False, "--secret", "-s", help="Encrypt the variable value."),
 ):
     """Adds or updates an environment variable in the envars.yml file."""
     manager = ctx.obj
+    assert ctx.parent is not None
     file_path = ctx.parent.params["file_path"]
 
     try:
         var_name, var_value = var_assignment.split("=", 1)
-    except ValueError:
+    except ValueError as e:
         error_console.print("[bold red]Error:[/bold red] Invalid variable assignment format. Use VAR=value.")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     # Ensure variable exists
     if var_name not in manager.variables:
         manager.add_variable(Variable(name=var_name))
+
+    if secret:
+        if not manager.kms_key:
+            error_console.print("[bold red]Error:[/] Cannot encrypt without a kms_key in configuration.")
+            raise typer.Exit(code=1)
+
+        # Determine KMS provider
+        if manager.kms_key.startswith("arn:aws:kms:"):
+            agent = AWSKMSAgent()
+            key_id = manager.kms_key
+        elif manager.kms_key.startswith("projects/"):
+            agent = GCPKMSAgent()
+            key_id = manager.kms_key
+        else:
+            error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
+            raise typer.Exit(code=1)
+
+        # Get encryption context
+        encryption_context = {
+            "app": manager.app or "",
+        }
+        if env:
+            encryption_context["environment"] = env
+        if loc:
+            encryption_context["location"] = loc
+
+        encrypted_value = agent.encrypt(var_value, key_id, encryption_context)
+        var_value = Secret(encrypted_value)
 
     # Determine scope and create VariableValue
     scope_type = "DEFAULT"
@@ -157,7 +189,7 @@ def add_env_var(
         console.print(f"[bold green]Successfully added/updated {var_name} in {file_path}[/]")
     except Exception as e:
         error_console.print(f"[bold red]Error writing to envars file:[/] {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
 
 @app.command(name="print")
@@ -165,6 +197,7 @@ def print_envars(
     ctx: typer.Context,
     env: str = typer.Option(None, "--env", "-e", help="Filter by environment."),
     loc: str = typer.Option(None, "--loc", "-l", help="Filter by location."),
+    decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
 ):
     """Prints the contents of the envars.yml file in a human-readable format."""
     manager = ctx.obj
@@ -193,6 +226,37 @@ def print_envars(
     for var_name, var in manager.variables.items():
         value = manager.get_variable_value(var_name, env, loc)
         if value:
+            if decrypt and isinstance(value, Secret):
+                if not manager.kms_key:
+                    error_console.print("[bold red]Error:[/] Cannot decrypt without a kms_key in configuration.")
+                    raise typer.Exit(code=1)
+
+                # Get encryption context
+                encryption_context = {
+                    "app": manager.app or "",
+                }
+                if env:
+                    encryption_context["environment"] = env
+                if loc:
+                    encryption_context["location"] = loc
+
+                try:
+                    # Determine KMS provider and decrypt
+                    if manager.kms_key.startswith("arn:aws:kms:"):
+                        agent = AWSKMSAgent()
+                        value = agent.decrypt(str(value), encryption_context)
+                    elif manager.kms_key.startswith("projects/"):
+                        agent = GCPKMSAgent()
+                        key_id = manager.kms_key
+                        value = agent.decrypt(str(value), key_id, encryption_context)
+                    else:
+                        error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
+                        raise typer.Exit(code=1)
+
+                except Exception as e:
+                    error_console.print(f"[bold red]Error decrypting {var_name}:[/] {e}")
+                    value = "[DECRYPTION FAILED]"
+
             v_tree = var_tree.add(f"[bold]{var_name}[/] - {var.description}")
             v_tree.add(f"[cyan]Value:[/] {value}")
 
