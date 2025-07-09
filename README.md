@@ -274,16 +274,16 @@ envars2 validate
 
 ## Development
 
-To set up the development environment, clone the repository and install the dependencies:
+To set up the development environment, clone the repository and install the dependencies using `uv`:
 
 ```bash
 git clone https://github.com/your-username/envars2.git
 cd envars2
-pip install -e ".[dev]"
+uv sync
 ```
 
 To run the tests:
 
 ```bash
-pytest
+uv run pytest
 ```
