@@ -67,6 +67,8 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
     # Load environment variables
     for var_name, var_data in data.get("environment_variables", {}).items():
+        if var_name.upper() != var_name:
+            raise ValueError(f"Variable name '{var_name}' must be uppercase.")
         manager.add_variable(Variable(name=var_name, description=var_data.get("description")))
 
         if "default" in var_data:
@@ -86,17 +88,22 @@ def load_from_yaml(file_path: str) -> VariableManager:
                 env_name = key
                 if isinstance(value, dict):
                     for loc_name, loc_value in value.items():
-                        loc = next((loc for loc in manager.locations.values() if loc.name == loc_name), None)
-                        if loc:
-                            manager.add_variable_value(
-                                VariableValue(
-                                    variable_name=var_name,
-                                    value=loc_value,
-                                    scope_type="SPECIFIC",
-                                    environment_name=env_name,
-                                    location_id=loc.location_id,
+                        if loc_name in [l.name for l in manager.locations.values()]:
+                            loc = next((loc for loc in manager.locations.values() if loc.name == loc_name), None)
+                            if loc:
+                                if isinstance(loc_value, dict):
+                                    raise ValueError(f"Invalid nesting in '{var_name}' -> '{env_name}' -> '{loc_name}'")
+                                manager.add_variable_value(
+                                    VariableValue(
+                                        variable_name=var_name,
+                                        value=loc_value,
+                                        scope_type="SPECIFIC",
+                                        environment_name=env_name,
+                                        location_id=loc.location_id,
+                                    )
                                 )
-                            )
+                        else:
+                            raise ValueError(f"Location '{loc_name}' not found in configuration.")
                 else:
                     manager.add_variable_value(
                         VariableValue(
@@ -113,6 +120,8 @@ def load_from_yaml(file_path: str) -> VariableManager:
                     if isinstance(value, dict):
                         for env_name, env_value in value.items():
                             if env_name in manager.environments:
+                                if isinstance(env_value, dict):
+                                    raise ValueError(f"Invalid nesting in '{var_name}' -> '{loc_name}' -> '{env_name}'")
                                 manager.add_variable_value(
                                     VariableValue(
                                         variable_name=var_name,
@@ -122,6 +131,8 @@ def load_from_yaml(file_path: str) -> VariableManager:
                                         location_id=loc.location_id,
                                     )
                                 )
+                            else:
+                                raise ValueError(f"Environment '{env_name}' not found in configuration.")
                     else:
                         manager.add_variable_value(
                             VariableValue(
@@ -131,6 +142,8 @@ def load_from_yaml(file_path: str) -> VariableManager:
                                 location_id=loc.location_id,
                             )
                         )
+            else:
+                raise ValueError(f"'{key}' is not a valid environment or location.")
 
     return manager
 

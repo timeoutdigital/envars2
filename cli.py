@@ -98,6 +98,10 @@ def add_env_var(
         error_console.print("[bold red]Error:[/bold red] Invalid variable assignment format. Use VAR=value.")
         raise typer.Exit(code=1) from e
 
+    if var_name.upper() != var_name:
+        error_console.print("[bold red]Error:[/] Variable names must be uppercase.")
+        raise typer.Exit(code=1)
+
     # Ensure variable exists
     if var_name not in manager.variables:
         manager.add_variable(Variable(name=var_name))
@@ -374,11 +378,10 @@ def yaml_command(
     env: str | None = typer.Option(
         None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
     ),
-    decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
 ):
     """Prints the environment variables as YAML."""
     manager = ctx.obj
-    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
     console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
 
 
@@ -411,6 +414,34 @@ def set_systemd_env(
     except subprocess.CalledProcessError as e:
         error_console.print(f"[bold red]Error setting systemd environment variables:[/] {e.stderr}")
         raise typer.Exit(code=1) from e
+
+
+@app.command(name="validate")
+def validate_command(
+    ctx: typer.Context,
+):
+    """Validates the envars.yml file for logical consistency."""
+    manager = ctx.obj
+    errors = []
+
+    # Check that all variable values correspond to a defined variable
+    defined_variable_names = set(manager.variables.keys())
+    for vv in manager.variable_values:
+        if vv.variable_name not in defined_variable_names:
+            errors.append(f"Variable '{vv.variable_name}' has values but is not defined as a top-level variable.")
+
+    # Check that all variable names are uppercase
+    for var_name in manager.variables:
+        if var_name.upper() != var_name:
+            errors.append(f"Variable name '{var_name}' must be uppercase.")
+
+    if errors:
+        error_console.print("[bold red]Validation failed with the following errors:[/]")
+        for error in set(errors):
+            error_console.print(f"- {error}")
+        raise typer.Exit(code=1)
+
+    console.print("[bold green]Validation successful![/]")
 
 
 if __name__ == "__main__":

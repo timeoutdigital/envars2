@@ -491,9 +491,15 @@ configuration:
     assert "Location 'other_loc' not found" in result.stderr
 
 
-def test_yaml_command(tmp_path):
+@patch("cli.AWSKMSAgent")
+def test_yaml_command(mock_aws_kms_agent, tmp_path):
+    mock_agent_instance = mock_aws_kms_agent.return_value
+    mock_agent_instance.decrypt.return_value = "decrypted_value"
+
     initial_content = """
 configuration:
+  app: MyApp
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
   environments:
     - dev
   locations:
@@ -503,16 +509,19 @@ environment_variables:
     default: "default_value"
     dev:
       my_loc: "dev_loc_value"
-  ANOTHER_VAR:
-    default: "another_value"
+  MY_SECRET:
+    dev:
+      my_loc: !secret "encrypted_value"
 """
     file_path = create_envars_file(tmp_path, initial_content)
+
+    # Test with default decryption
     result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 0
     expected_yaml = """
 envars:
   MY_VAR: dev_loc_value
-  ANOTHER_VAR: another_value
+  MY_SECRET: decrypted_value
 """
     output_dict = yaml.safe_load(result.stdout)
     expected_dict = yaml.safe_load(expected_yaml)
@@ -549,3 +558,115 @@ environment_variables:
         "MY_VAR=dev_loc_value",
         "ANOTHER_VAR=another_value",
     ]
+
+
+def test_validate_command_success(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    description: "A test variable"
+    dev:
+      my_loc: "dev_loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 0
+    assert "Validation successful!" in result.stdout
+
+
+def test_validate_command_missing_variable_definition(tmp_path):
+    # This YAML is structurally valid but logically inconsistent.
+    # The `load_from_yaml` will load it, but `validate` should catch it.
+    initial_content = """
+configuration:
+  environments:
+    - dev
+environment_variables:
+  MY_VAR:
+    description: "This is fine"
+  # ANOTHER_VAR is not defined here, but has values below
+  ANOTHER_VAR:
+    default: "another_value"
+"""
+    file_path = tmp_path / "invalid_vars.yml"
+    with open(file_path, "w") as f:
+        f.write(
+            """
+environment_variables:
+  MY_VAR:
+    description: "This is fine"
+  ANOTHER_VAR:
+    default: "another_value"
+"""
+        )
+
+    # To make this test work, we need to create a manager that has the inconsistency.
+    # We'll add a value for a variable that is not in the manager's `variables` dict.
+    from src.envars.models import VariableManager, VariableValue
+
+    manager = VariableManager()
+    manager.add_variable_value(VariableValue(variable_name="UNDEFINED_VAR", value="some_value", scope_type="DEFAULT"))
+
+    with patch("cli.load_from_yaml", return_value=manager):
+        result = runner.invoke(app, ["--file", str(file_path), "validate"])
+
+    assert result.exit_code == 1
+    assert "Variable 'UNDEFINED_VAR' has values but is not defined as a top-level variable." in result.stderr.replace(
+        "\n", ""
+    )
+
+
+def test_add_variable_lowercase(tmp_path):
+    file_path = create_envars_file(tmp_path)
+    result = runner.invoke(app, ["--file", file_path, "add", "my_var=my_value"])
+    assert result.exit_code == 1
+    assert "Variable names must be uppercase." in result.stderr
+
+
+def test_validate_command_lowercase_variable(tmp_path):
+    initial_content = """
+environment_variables:
+  my_var:
+    default: "my_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 1
+    assert "Variable name 'my_var' must be uppercase." in result.stderr
+
+
+def test_load_from_yaml_lowercase_variable(tmp_path):
+    initial_content = """
+environment_variables:
+  my_var:
+    default: "my_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print"])
+    assert result.exit_code == 1
+    assert "Variable name 'my_var' must be uppercase." in result.stderr
+
+
+def test_load_from_yaml_invalid_structure(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - prod
+    - staging
+  locations:
+    - master: "511042647617"
+environment_variables:
+  PROD_ONLY_VAR:
+    prod:
+      master:
+        staging: abc
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print"])
+    assert result.exit_code == 1
+    assert "Invalid nesting in 'PROD_ONLY_VAR' -> 'prod' -> 'master'" in result.stderr.replace("\n", "")

@@ -14,7 +14,9 @@ Envars2 is a powerful command-line tool for managing environment variables acros
   - `exec`: Execute a command with the resolved environment variables.
   - `yaml`: Output resolved variables as a YAML object.
   - `set-systemd-env`: Set environment variables for a systemd user service.
+  - `validate`: Validate the `envars.yml` file for logical consistency.
 - **Shell Integration**: Use the `STAGE` environment variable to set the default environment for the `exec`, `yaml`, and `set-systemd-env` commands.
+- **Strict Validation**: Enforces uppercase variable names and correct structure.
 
 ## Installation
 
@@ -161,7 +163,7 @@ envars2 exec --loc aws --env dev -- python my_script.py
 
 ### `yaml`
 
-Output the resolved variables as a YAML object.
+Output the resolved variables as a YAML object. Secrets are decrypted by default.
 
 **Syntax:**
 
@@ -189,6 +191,22 @@ envars2 set-systemd-env --loc <location> [OPTIONS]
 
 ```bash
 envars2 set-systemd-env --loc aws --env dev
+```
+
+### `validate`
+
+Validate the `envars.yml` file for logical consistency.
+
+**Syntax:**
+
+```bash
+envars2 validate
+```
+
+**Example:**
+
+```bash
+envars2 validate
 ```
 
 ## Development
