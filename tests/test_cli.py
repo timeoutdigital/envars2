@@ -17,6 +17,32 @@ def read_yaml_file(file_path):
         return yaml.safe_load(f)
 
 
+def test_init_command(tmp_path):
+    file_path = tmp_path / "envars.yml"
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "--file",
+            str(file_path),
+            "--app",
+            "MyApp",
+            "--env",
+            "dev,prod",
+            "--loc",
+            "aws:123,gcp:456",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Successfully initialized" in result.stdout
+
+    data = read_yaml_file(file_path)
+    assert data["configuration"]["app"] == "MyApp"
+    assert data["configuration"]["environments"] == ["dev", "prod"]
+    assert {"aws": "123"} in data["configuration"]["locations"]
+    assert {"gcp": "456"} in data["configuration"]["locations"]
+
+
 def test_add_default_variable(tmp_path):
     file_path = create_envars_file(tmp_path)
     result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=my_value"])
