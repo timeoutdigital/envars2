@@ -261,7 +261,8 @@ environment_variables:
     assert "decrypted_value" not in result.stdout
 
 
-def test_exec_command_greedy(tmp_path):
+@patch("os.execvpe")
+def test_exec_command_greedy(mock_execvpe, tmp_path):
     initial_content = """
 configuration:
   environments:
@@ -294,9 +295,21 @@ environment_variables:
         ],
     )
     assert result.exit_code == 0
-    assert "dev_loc_value" in result.stdout
+
+    # Assert that execvpe was called with the correct command and environment
+    mock_execvpe.assert_called_once()
+    call_args = mock_execvpe.call_args[0]
+    assert call_args[0] == "sh"
+    assert call_args[1] == [
+        "sh",
+        "-c",
+        "echo $MY_VAR",
+    ]
+    assert "MY_VAR" in call_args[2]
+    assert call_args[2]["MY_VAR"] == "dev_loc_value"
 
     # Test with a command that has its own flags
+    mock_execvpe.reset_mock()
     result = runner.invoke(
         app,
         [
@@ -316,7 +329,18 @@ environment_variables:
         ],
     )
     assert result.exit_code == 0
-    assert "var=dev_loc_value, args=--my-flag my-value" in result.stdout
+    mock_execvpe.assert_called_once()
+    call_args = mock_execvpe.call_args[0]
+    assert call_args[0] == "sh"
+    assert call_args[1] == [
+        "sh",
+        "-c",
+        'echo "var=$MY_VAR, args=$@"',
+        "--my-flag",
+        "my-value",
+    ]
+    assert "MY_VAR" in call_args[2]
+    assert call_args[2]["MY_VAR"] == "dev_loc_value"
 
 
 def test_print_no_options(tmp_path):
