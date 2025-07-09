@@ -1,13 +1,52 @@
+import os
+
 import typer
 from rich.console import Console
 from rich.tree import Tree
 
 from src.envars.main import load_from_yaml, write_envars_yml
-from src.envars.models import Variable, VariableValue
+from src.envars.models import Environment, Location, Variable, VariableManager, VariableValue
 
 app = typer.Typer()
 console = Console()
 error_console = Console(stderr=True)
+
+
+@app.command(name="init")
+def init_envars(
+    app_name: str = typer.Option(..., "--app", "-a", help="Application name."),
+    env: str = typer.Option(..., "--env", "-e", help="Comma-separated list of environments."),
+    loc: str = typer.Option(..., "--loc", "-l", help="Comma-separated list of locations in name:id format."),
+    kms_key: str = typer.Option(None, "--kms-key", "-k", help="Global KMS key."),
+    file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file."),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing envars.yml file."),
+):
+    """Initializes a new envars.yml file."""
+    if os.path.exists(file_path) and not force:
+        error_console.print(f"[bold red]Error:[/] {file_path} already exists. Use --force to overwrite.")
+        raise typer.Exit(code=1)
+
+    manager = VariableManager(app=app_name, kms_key=kms_key)
+
+    environments = [e.strip() for e in env.split(",")]
+    for env_name in environments:
+        manager.add_environment(Environment(name=env_name))
+
+    locations = [l.strip() for l in loc.split(",")]
+    for loc_item in locations:
+        try:
+            name, loc_id = loc_item.split(":", 1)
+            manager.add_location(Location(name=name, location_id=loc_id))
+        except ValueError:
+            error_console.print(f"[bold red]Error:[/] Invalid location format: {loc_item}. Use name:id.")
+            raise typer.Exit(code=1)
+
+    try:
+        write_envars_yml(manager, file_path)
+        console.print(f"[bold green]Successfully initialized {file_path}[/]")
+    except Exception as e:
+        error_console.print(f"[bold red]Error writing to envars file:[/] {e}")
+        raise typer.Exit(code=1)
 
 
 @app.callback(invoke_without_command=True)
@@ -19,9 +58,15 @@ def main(
         console.print("Use 'print' to load and display an envars file.")
         return
 
+    if ctx.invoked_subcommand == "init":
+        return
+
     try:
         manager = load_from_yaml(file_path)
         ctx.obj = manager
+    except FileNotFoundError:
+        error_console.print(f"[bold red]Error:[/] {file_path} not found. Use 'init' to create a new file.")
+        raise typer.Exit(code=1)
     except Exception as e:
         error_console.print(f"[bold red]Error loading envars file:[/] {e}")
         raise typer.Exit(code=1)
