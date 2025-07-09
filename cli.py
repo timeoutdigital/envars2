@@ -1,6 +1,7 @@
 import os
 
 import typer
+import yaml
 from rich.console import Console
 from rich.tree import Tree
 
@@ -355,6 +356,55 @@ def exec_command(
     except Exception as e:
         error_console.print(f"[bold red]Error executing command:[/] {e}")
         raise typer.Exit(code=1) from e
+
+
+@app.command(name="yaml")
+def yaml_command(
+    ctx: typer.Context,
+    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    env: str | None = typer.Option(
+        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
+    ),
+    decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
+):
+    """Prints the environment variables as YAML."""
+    if env is None:
+        env = os.environ.get("STAGE")
+        if env is None:
+            error_console.print(
+                "[bold red]Error:[/] The --env option is required if the STAGE environment variable is not set."
+            )
+            raise typer.Exit(code=1)
+
+    manager = ctx.obj
+
+    if env not in manager.environments:
+        error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
+        raise typer.Exit(code=1)
+
+    if not any(l.name == loc for l in manager.locations.values()):
+        error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
+        raise typer.Exit(code=1)
+
+    envars = {}
+    for var_name in manager.variables:
+        variable_value_obj = manager.get_variable(var_name, env, loc)
+
+        if variable_value_obj is None:
+            continue
+
+        value = (
+            _get_decrypted_value(manager, variable_value_obj)
+            if decrypt and isinstance(variable_value_obj.value, Secret)
+            else variable_value_obj.value
+        )
+
+        if value == "[DECRYPTION FAILED]":
+            raise typer.Exit(code=1)
+
+        envars[var_name] = value
+
+    console.print(yaml.dump({"envars": envars}, sort_keys=False))
 
 
 if __name__ == "__main__":

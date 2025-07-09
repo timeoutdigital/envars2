@@ -489,3 +489,31 @@ configuration:
     result = runner.invoke(app, ["--file", file_path, "exec", "--env", "dev", "--loc", "other_loc", "echo", "hello"])
     assert result.exit_code == 1
     assert "Location 'other_loc' not found" in result.stderr
+
+
+def test_yaml_command(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+  ANOTHER_VAR:
+    default: "another_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    expected_yaml = """
+envars:
+  MY_VAR: dev_loc_value
+  ANOTHER_VAR: another_value
+"""
+    output_dict = yaml.safe_load(result.stdout)
+    expected_dict = yaml.safe_load(expected_yaml)
+    assert output_dict == expected_dict
