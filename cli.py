@@ -126,6 +126,9 @@ def add_env_var(
         manager.variables[var_name].description = description
 
     if secret:
+        if not env and not loc:
+            error_console.print("[bold red]Error:[/] Secrets must be scoped to an environment and/or location.")
+            raise typer.Exit(code=1)
         if not manager.kms_key:
             error_console.print("[bold red]Error:[/] Cannot encrypt without a kms_key in configuration.")
             raise typer.Exit(code=1)
@@ -517,6 +520,11 @@ def validate_command(
         for var_name, var in manager.variables.items():
             if not var.description:
                 errors.append(f"Variable '{var_name}' is missing a description.")
+
+    # Check for default secrets
+    for vv in manager.variable_values:
+        if isinstance(vv.value, Secret) and vv.scope_type == "DEFAULT":
+            errors.append(f"Variable '{vv.variable_name}' is a secret and cannot have a default value.")
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")

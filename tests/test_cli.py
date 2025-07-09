@@ -772,6 +772,31 @@ def test_add_sensitive_variable_no_secret_flag(tmp_path):
     assert data["environment_variables"]["MY_PASSWORD"]["default"] == "my_value"
 
 
+def test_add_default_secret_fails(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "some-key"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "add", "MY_SECRET=my_value", "--secret"])
+    assert result.exit_code == 1
+    assert "Secrets must be scoped to an environment and/or location." in result.stderr
+
+
+def test_validate_default_secret_fails(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "some-key"
+environment_variables:
+  MY_SECRET:
+    default: !secret "my_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 1
+    assert "Variable 'MY_SECRET' is a secret and cannot have a default value." in result.stderr
+
+
 def test_load_from_yaml_invalid_structure(tmp_path):
     initial_content = """
 configuration:
