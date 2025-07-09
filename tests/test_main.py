@@ -89,7 +89,7 @@ configuration:
   environments:
   - dev
   - prod
-  accounts:
+  locations:
   - aws_us_east: '12345'
   - gcp_us_central: '67890'
 
@@ -143,7 +143,7 @@ configuration:
   kms_key: "global-kms-key"
   environments:
     - prod
-  accounts:
+  locations:
     - aws:
         id: "12345"
         kms_key: "aws-kms-key"
@@ -162,7 +162,7 @@ configuration:
   environments:
     - dev
     - prod
-  accounts:
+  locations:
     - aws_us_east: "12345"
     - gcp_us_central: "67890"
 

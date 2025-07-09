@@ -45,7 +45,7 @@ configuration:
 def test_add_loc_variable(tmp_path):
     initial_content = """
 configuration:
-  accounts:
+  locations:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
@@ -62,7 +62,7 @@ def test_add_specific_variable(tmp_path):
 configuration:
   environments:
     - dev
-  accounts:
+  locations:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
@@ -108,7 +108,7 @@ def test_add_variable_non_existent_location(tmp_path):
 def test_add_variable_non_existent_environment_for_specific(tmp_path):
     initial_content = """
 configuration:
-  accounts:
+  locations:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)

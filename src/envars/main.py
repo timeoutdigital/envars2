@@ -41,8 +41,8 @@ def load_from_yaml(file_path: str) -> VariableManager:
     for env_name in data.get("configuration", {}).get("environments", []):
         manager.add_environment(Environment(name=env_name))
 
-    # Load locations (accounts)
-    for acc_data in data.get("configuration", {}).get("accounts", []):
+    # Load locations
+    for acc_data in data.get("configuration", {}).get("locations", []):
         for acc_name, acc_details in acc_data.items():
             if isinstance(acc_details, dict):
                 location_id = acc_details.get("id")
@@ -123,19 +123,19 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
 def write_envars_yml(manager: VariableManager, file_path: str):
     """Writes the VariableManager data to a YAML file."""
-    accounts_data = []
+    locations_data = []
     for loc in sorted(manager.locations.values(), key=lambda x: x.name):
         if loc.kms_key:
-            accounts_data.append({loc.name: {"id": loc.location_id, "kms_key": loc.kms_key}})
+            locations_data.append({loc.name: {"id": loc.location_id, "kms_key": loc.kms_key}})
         else:
-            accounts_data.append({loc.name: loc.location_id})
+            locations_data.append({loc.name: loc.location_id})
 
     data = {
         "configuration": {
             "app": manager.app,
             "kms_key": manager.kms_key,
             "environments": sorted(list(manager.environments.keys())),
-            "accounts": accounts_data,
+            "locations": locations_data,
         },
         "environment_variables": {},
     }
@@ -197,9 +197,9 @@ def write_envars_yml(manager: VariableManager, file_path: str):
         # Dump configuration if it exists
         if any(data["configuration"].values()):
             config_data = {"configuration": data["configuration"]}
-            # Sort accounts list of dicts
-            config_data["configuration"]["accounts"] = sorted(
-                config_data["configuration"]["accounts"],
+            # Sort locations list of dicts
+            config_data["configuration"]["locations"] = sorted(
+                config_data["configuration"]["locations"],
                 key=lambda x: list(x.keys())[0],
             )
             yaml.dump(config_data, f, sort_keys=False, Dumper=yaml.Dumper)
