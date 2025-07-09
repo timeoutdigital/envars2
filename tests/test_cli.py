@@ -259,3 +259,61 @@ environment_variables:
     assert result.exit_code == 0
     assert "encrypted_value" in result.stdout
     assert "decrypted_value" not in result.stdout
+
+
+def test_exec_command_greedy(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+
+    # The command to execute is `sh -c 'echo $MY_VAR'`.
+    # This will print the value of the environment variable MY_VAR.
+    result = runner.invoke(
+        app,
+        [
+            "--file",
+            file_path,
+            "exec",
+            "--env",
+            "dev",
+            "--loc",
+            "my_loc",
+            "sh",
+            "-c",
+            "echo $MY_VAR",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "dev_loc_value" in result.stdout
+
+    # Test with a command that has its own flags
+    result = runner.invoke(
+        app,
+        [
+            "--file",
+            file_path,
+            "exec",
+            "--env",
+            "dev",
+            "--loc",
+            "my_loc",
+            "sh",
+            "-c",
+            'echo "var=$MY_VAR, args=$@"',
+            "--",
+            "--my-flag",
+            "my-value",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "var=dev_loc_value, args=--my-flag my-value" in result.stdout

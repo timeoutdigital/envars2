@@ -280,38 +280,38 @@ def test_add_duplicate_variable_value(manager):
 
 
 def test_get_value_specific(manager):
-    val = manager.get_variable_value("API_KEY", "Prod", "AWS")
-    assert val == "prod_aws_key"
+    var = manager.get_variable("API_KEY", "Prod", "AWS")
+    assert var.value == "prod_aws_key"
 
 
 def test_get_value_environment(manager):
-    val = manager.get_variable_value("API_KEY", "Dev", "GCP")
-    assert val == "dev_key"
+    var = manager.get_variable("API_KEY", "Dev", "GCP")
+    assert var.value == "dev_key"
 
 
 def test_get_value_location(manager):
-    val = manager.get_variable_value("DB_URL", "Prod", "AWS")
-    assert val == "aws_db"
+    var = manager.get_variable("DB_URL", "Prod", "AWS")
+    assert var.value == "aws_db"
 
 
 def test_get_value_default(manager):
-    val = manager.get_variable_value("API_KEY", "Prod", "GCP")
-    assert val == "default_key"
+    var = manager.get_variable("API_KEY", "Prod", "GCP")
+    assert var.value == "default_key"
 
 
 def test_get_value_no_value(manager):
-    val = manager.get_variable_value("DB_URL", "Dev", "GCP")
-    assert val is None
+    var = manager.get_variable("DB_URL", "Dev", "GCP")
+    assert var is None
 
 
 def test_get_value_non_existent_variable(manager):
-    val = manager.get_variable_value("NON_EXISTENT", "Prod", "AWS")
-    assert val is None
+    var = manager.get_variable("NON_EXISTENT", "Prod", "AWS")
+    assert var is None
 
 
 def test_get_value_non_existent_env_or_loc(manager):
     # Should fall back to default
-    val = manager.get_variable_value("API_KEY", "NonExistentEnv", "AWS")
-    assert val == "default_key"
-    val = manager.get_variable_value("API_KEY", "Prod", "NonExistentLoc")
-    assert val == "default_key"
+    var = manager.get_variable("API_KEY", "NonExistentEnv", "AWS")
+    assert var.value == "default_key"
+    var = manager.get_variable("API_KEY", "Prod", "NonExistentLoc")
+    assert var.value == "default_key"

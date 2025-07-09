@@ -224,21 +224,25 @@ def print_envars(
     # Variables
     var_tree = tree.add("[bold blue]Variables[/]")
     for var_name, var in manager.variables.items():
-        value = manager.get_variable_value(var_name, env, loc)
-        if value:
+        variable_value_obj = manager.get_variable(var_name, env, loc)
+        if variable_value_obj:
+            value = variable_value_obj.value
             if decrypt and isinstance(value, Secret):
                 if not manager.kms_key:
                     error_console.print("[bold red]Error:[/] Cannot decrypt without a kms_key in configuration.")
                     raise typer.Exit(code=1)
 
-                # Get encryption context
-                encryption_context = {
-                    "app": manager.app or "",
-                }
-                if env:
-                    encryption_context["environment"] = env
-                if loc:
-                    encryption_context["location"] = loc
+                # Get encryption context from the variable's scope
+                encryption_context = {"app": manager.app or ""}
+                if variable_value_obj.environment_name:
+                    encryption_context["environment"] = variable_value_obj.environment_name
+                if variable_value_obj.location_id:
+                    loc_name = next(
+                        (l.name for l in manager.locations.values() if l.location_id == variable_value_obj.location_id),
+                        None,
+                    )
+                    if loc_name:
+                        encryption_context["location"] = loc_name
 
                 try:
                     # Determine KMS provider and decrypt
@@ -261,6 +265,72 @@ def print_envars(
             v_tree.add(f"[cyan]Value:[/] {value}")
 
     console.print(tree)
+
+
+@app.command(name="exec", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def exec_command(
+    ctx: typer.Context,
+    env: str = typer.Option(..., "--env", "-e", help="Environment for context."),
+    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+):
+    """Populates the environment and executes a command."""
+    manager = ctx.obj
+    new_env = os.environ.copy()
+    command = ctx.args
+
+    for var_name in manager.variables:
+        variable_value_obj = manager.get_variable(var_name, env, loc)
+
+        if variable_value_obj is None:
+            continue
+
+        value = variable_value_obj.value
+        if isinstance(value, Secret):
+            if not manager.kms_key:
+                error_console.print("[bold red]Error:[/] Cannot decrypt without a kms_key in configuration.")
+                raise typer.Exit(code=1)
+
+            # Get encryption context from the variable's scope
+            encryption_context = {"app": manager.app or ""}
+            if variable_value_obj.environment_name:
+                encryption_context["environment"] = variable_value_obj.environment_name
+            if variable_value_obj.location_id:
+                loc_name = next(
+                    (l.name for l in manager.locations.values() if l.location_id == variable_value_obj.location_id),
+                    None,
+                )
+                if loc_name:
+                    encryption_context["location"] = loc_name
+
+            try:
+                if manager.kms_key.startswith("arn:aws:kms:"):
+                    agent = AWSKMSAgent()
+                    value = agent.decrypt(str(value), encryption_context)
+                elif manager.kms_key.startswith("projects/"):
+                    agent = GCPKMSAgent()
+                    key_id = manager.kms_key
+                    value = agent.decrypt(str(value), key_id, encryption_context)
+                else:
+                    error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
+                    raise typer.Exit(code=1)
+            except Exception as e:
+                error_console.print(f"[bold red]Error decrypting {var_name}:[/] {e}")
+                raise typer.Exit(code=1) from e
+
+        new_env[var_name] = str(value)
+
+    if not command:
+        error_console.print("[bold red]Error:[/] No command provided.")
+        raise typer.Exit(code=1)
+
+    try:
+        os.execvpe(command[0], command, new_env)
+    except FileNotFoundError:
+        error_console.print(f"[bold red]Error:[/] Command not found: {command[0]}")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        error_console.print(f"[bold red]Error executing command:[/] {e}")
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":

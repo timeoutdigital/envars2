@@ -132,8 +132,10 @@ environment_variables:
     for var_name in manager.variables:
         for env_name in list(manager.environments.keys()) + [None]:
             for loc_name in [loc.name for loc in manager.locations.values()] + [None]:
-                expected_value = manager.get_variable_value(var_name, env_name, loc_name)
-                actual_value = loaded_manager.get_variable_value(var_name, env_name, loc_name)
+                expected_var = manager.get_variable(var_name, env_name, loc_name)
+                actual_var = loaded_manager.get_variable(var_name, env_name, loc_name)
+                expected_value = expected_var.value if expected_var else None
+                actual_value = actual_var.value if actual_var else None
                 assert expected_value == actual_value
 
 
@@ -199,27 +201,27 @@ environment_variables:
     assert "TEST_VAR" in manager.variables
 
     # Test API_KEY values
-    assert manager.get_variable_value("API_KEY", None, None) == "default_api_key"
-    assert manager.get_variable_value("API_KEY", "dev", None) == "dev_api_key"
-    assert manager.get_variable_value("API_KEY", "prod", "aws_us_east") == "prod_aws_api_key"
-    assert manager.get_variable_value("API_KEY", "prod", "gcp_us_central") == "default_api_key"  # Falls back to default
+    assert manager.get_variable("API_KEY", None, None).value == "default_api_key"
+    assert manager.get_variable("API_KEY", "dev", None).value == "dev_api_key"
+    assert manager.get_variable("API_KEY", "prod", "aws_us_east").value == "prod_aws_api_key"
+    assert manager.get_variable("API_KEY", "prod", "gcp_us_central").value == "default_api_key"  # Falls back to default
 
     # Test DB_URL values
-    assert manager.get_variable_value("DB_URL", "prod", None) == "prod_db_url"
-    assert manager.get_variable_value("DB_URL", "dev", "gcp_us_central") == "dev_gcp_db_url"
-    assert manager.get_variable_value("DB_URL", "prod", "aws_us_east") == "prod_db_url"  # Falls back to env specific
+    assert manager.get_variable("DB_URL", "prod", None).value == "prod_db_url"
+    assert manager.get_variable("DB_URL", "dev", "gcp_us_central").value == "dev_gcp_db_url"
+    assert manager.get_variable("DB_URL", "prod", "aws_us_east").value == "prod_db_url"  # Falls back to env specific
 
     # Test TEST_VAR values
-    assert manager.get_variable_value("TEST_VAR", None, None) == "test_default"
-    assert manager.get_variable_value("TEST_VAR", "dev", None) == "test_dev"
-    assert manager.get_variable_value("TEST_VAR", "prod", None) == "test_prod"
-    assert manager.get_variable_value("TEST_VAR", None, "aws_us_east") == "test_aws"
-    assert manager.get_variable_value("TEST_VAR", None, "gcp_us_central") == "test_gcp"
+    assert manager.get_variable("TEST_VAR", None, None).value == "test_default"
+    assert manager.get_variable("TEST_VAR", "dev", None).value == "test_dev"
+    assert manager.get_variable("TEST_VAR", "prod", None).value == "test_prod"
+    assert manager.get_variable("TEST_VAR", None, "aws_us_east").value == "test_aws"
+    assert manager.get_variable("TEST_VAR", None, "gcp_us_central").value == "test_gcp"
     assert (
-        manager.get_variable_value("TEST_VAR", "dev", "aws_us_east") == "test_dev"
+        manager.get_variable("TEST_VAR", "dev", "aws_us_east").value == "test_dev"
     )  # Env takes precedence over location
     assert (
-        manager.get_variable_value("TEST_VAR", "prod", "gcp_us_central") == "test_prod"
+        manager.get_variable("TEST_VAR", "prod", "gcp_us_central").value == "test_prod"
     )  # Env takes precedence over location
 
 
@@ -247,7 +249,7 @@ environment_variables:
     assert not manager.environments
     assert not manager.locations
     assert "VAR1" in manager.variables
-    assert manager.get_variable_value("VAR1", None, None) == "value1"
+    assert manager.get_variable("VAR1", None, None).value == "value1"
 
 
 # Test cases for DuplicateKeyError and SafeLoaderWithDuplicatesCheck

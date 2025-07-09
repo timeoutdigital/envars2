@@ -221,12 +221,12 @@ class VariableManager:
                     )
         self.variable_values.append(var_value)
 
-    def get_variable_value(
+    def get_variable(
         self,
         variable_name: str,
         environment_name: str | None = None,
         location_name: str | None = None,
-    ) -> str | None:
+    ) -> VariableValue | None:
         """Retrieves the most specific value for a variable based on the context.
 
         The hierarchy is:
@@ -264,7 +264,7 @@ class VariableManager:
                 None,
             )
             if specific_val:
-                return specific_val.value
+                return specific_val
 
         # 2. Try for ENVIRONMENT
         if environment_name:
@@ -277,7 +277,7 @@ class VariableManager:
                 None,
             )
             if env_val:
-                return env_val.value
+                return env_val
 
         # 3. Try for LOCATION
         if loc_id:
@@ -285,12 +285,12 @@ class VariableManager:
                 (vv for vv in candidate_values if vv.scope_type == "LOCATION" and vv.location_id == loc_id), None
             )
             if loc_val:
-                return loc_val.value
+                return loc_val
 
         # 4. Fallback to DEFAULT
         default_val = next((vv for vv in candidate_values if vv.scope_type == "DEFAULT"), None)
         if default_val:
-            return default_val.value
+            return default_val
 
         return None
 
@@ -372,30 +372,28 @@ if __name__ == "__main__":
     print("\n--- Retrieving Variable Values ---")
 
     # Test Cases for API_KEY
-    print(f"API_KEY (AWS, Prod): {manager.get_variable_value('API_KEY', 'Production', 'AWS Account 1')}")
+    print(f"API_KEY (AWS, Prod): {manager.get_variable('API_KEY', 'Production', 'AWS Account 1')}")
     # Expected: AWS_PROD_API_KEY_SECURE (Specific)
 
-    print(f"API_KEY (AWS, Dev): {manager.get_variable_value('API_KEY', 'Development', 'AWS Account 1')}")
+    print(f"API_KEY (AWS, Dev): {manager.get_variable('API_KEY', 'Development', 'AWS Account 1')}")
     # Expected: DEV_API_KEY_DEFAULT (Environment-specific, as no specific for AWS/Dev)
 
-    print(f"API_KEY (GCP, Dev): {manager.get_variable_value('API_KEY', 'Development', 'GCP Project Main')}")
+    print(f"API_KEY (GCP, Dev): {manager.get_variable('API_KEY', 'Development', 'GCP Project Main')}")
     # Expected: GCP_DEV_API_KEY_TEST (Specific)
 
-    print(f"API_KEY (GCP, Prod): {manager.get_variable_value('API_KEY', 'Production', 'GCP Project Main')}")
+    print(f"API_KEY (GCP, Prod): {manager.get_variable('API_KEY', 'Production', 'GCP Project Main')}")
     # Expected: DEFAULT_API_KEY (Default, as no specific or env-specific for GCP/Prod)
 
-    print(f"API_KEY (AWS, QA): {manager.get_variable_value('API_KEY', 'QA', 'AWS Account 1')}")
+    print(f"API_KEY (AWS, QA): {manager.get_variable('API_KEY', 'QA', 'AWS Account 1')}")
     # Expected: DEFAULT_API_KEY (Default, as no specific or env-specific for AWS/QA)
 
     # Test Cases for DATABASE_URL
-    print(f"DATABASE_URL (AWS, Prod): {manager.get_variable_value('DATABASE_URL', 'Production', 'AWS Account 1')}")
+    print(f"DATABASE_URL (AWS, Prod): {manager.get_variable('DATABASE_URL', 'Production', 'AWS Account 1')}")
     # Expected: AWS_DB_DEFAULT_URL (Location-specific)
 
-    print(f"DATABASE_URL (GCP, Dev): {manager.get_variable_value('DATABASE_URL', 'Development', 'GCP Project Main')}")
+    print(f"DATABASE_URL (GCP, Dev): {manager.get_variable('DATABASE_URL', 'Development', 'GCP Project Main')}")
     # Expected: None (No value defined, and no default for DATABASE_URL)
 
     # Test for non-existent variable
-    print(
-        f"NON_EXISTENT_VAR (AWS, Prod): {manager.get_variable_value('NON_EXISTENT_VAR', 'Production', 'AWS Account 1')}"
-    )
+    print(f"NON_EXISTENT_VAR (AWS, Prod): {manager.get_variable('NON_EXISTENT_VAR', 'Production', 'AWS Account 1')}")
     # Expected: None
