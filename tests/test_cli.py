@@ -24,9 +24,9 @@ def test_init_command(tmp_path):
     result = runner.invoke(
         app,
         [
-            "init",
             "--file",
             str(file_path),
+            "init",
             "--app",
             "MyApp",
             "--env",
@@ -262,6 +262,51 @@ environment_variables:
 
 
 @patch("os.execvpe")
+def test_exec_command_with_stage_env_var(mock_execvpe, tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+
+    with patch.dict("os.environ", {"STAGE": "dev"}):
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                file_path,
+                "exec",
+                "--loc",
+                "my_loc",
+                "sh",
+                "-c",
+                "echo $MY_VAR",
+            ],
+        )
+    assert result.exit_code == 0
+
+    # Assert that execvpe was called with the correct command and environment
+    mock_execvpe.assert_called_once()
+    call_args = mock_execvpe.call_args[0]
+    assert call_args[0] == "sh"
+    assert call_args[1] == [
+        "sh",
+        "-c",
+        "echo $MY_VAR",
+    ]
+    assert "MY_VAR" in call_args[2]
+    assert call_args[2]["MY_VAR"] == "dev_loc_value"
+
+
+@patch("os.execvpe")
 def test_exec_command_greedy(mock_execvpe, tmp_path):
     initial_content = """
 configuration:
@@ -392,3 +437,55 @@ environment_variables:
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout
     assert "Envars Configuration" not in result.stdout
+
+
+def test_print_invalid_env(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "prod"])
+    assert result.exit_code == 1
+    assert "Environment 'prod' not found" in result.stderr
+
+
+def test_print_invalid_loc(tmp_path):
+    initial_content = """
+configuration:
+  locations:
+    - my_loc: "loc123"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print", "--loc", "other_loc"])
+    assert result.exit_code == 1
+    assert "Location 'other_loc' not found" in result.stderr
+
+
+def test_exec_invalid_env(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "exec", "--env", "prod", "--loc", "my_loc", "echo", "hello"])
+    assert result.exit_code == 1
+    assert "Environment 'prod' not found" in result.stderr
+
+
+def test_exec_invalid_loc(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "exec", "--env", "dev", "--loc", "other_loc", "echo", "hello"])
+    assert result.exit_code == 1
+    assert "Location 'other_loc' not found" in result.stderr

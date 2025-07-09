@@ -201,28 +201,38 @@ environment_variables:
     assert "TEST_VAR" in manager.variables
 
     # Test API_KEY values
-    assert manager.get_variable("API_KEY", None, None).value == "default_api_key"
-    assert manager.get_variable("API_KEY", "dev", None).value == "dev_api_key"
-    assert manager.get_variable("API_KEY", "prod", "aws_us_east").value == "prod_aws_api_key"
-    assert manager.get_variable("API_KEY", "prod", "gcp_us_central").value == "default_api_key"  # Falls back to default
+    api_key_default = manager.get_variable("API_KEY", None, None)
+    assert api_key_default and api_key_default.value == "default_api_key"
+    api_key_dev = manager.get_variable("API_KEY", "dev", None)
+    assert api_key_dev and api_key_dev.value == "dev_api_key"
+    api_key_prod_aws = manager.get_variable("API_KEY", "prod", "aws_us_east")
+    assert api_key_prod_aws and api_key_prod_aws.value == "prod_aws_api_key"
+    api_key_prod_gcp = manager.get_variable("API_KEY", "prod", "gcp_us_central")
+    assert api_key_prod_gcp and api_key_prod_gcp.value == "default_api_key"  # Falls back to default
 
     # Test DB_URL values
-    assert manager.get_variable("DB_URL", "prod", None).value == "prod_db_url"
-    assert manager.get_variable("DB_URL", "dev", "gcp_us_central").value == "dev_gcp_db_url"
-    assert manager.get_variable("DB_URL", "prod", "aws_us_east").value == "prod_db_url"  # Falls back to env specific
+    db_url_prod = manager.get_variable("DB_URL", "prod", None)
+    assert db_url_prod and db_url_prod.value == "prod_db_url"
+    db_url_dev_gcp = manager.get_variable("DB_URL", "dev", "gcp_us_central")
+    assert db_url_dev_gcp and db_url_dev_gcp.value == "dev_gcp_db_url"
+    db_url_prod_aws = manager.get_variable("DB_URL", "prod", "aws_us_east")
+    assert db_url_prod_aws and db_url_prod_aws.value == "prod_db_url"  # Falls back to env specific
 
     # Test TEST_VAR values
-    assert manager.get_variable("TEST_VAR", None, None).value == "test_default"
-    assert manager.get_variable("TEST_VAR", "dev", None).value == "test_dev"
-    assert manager.get_variable("TEST_VAR", "prod", None).value == "test_prod"
-    assert manager.get_variable("TEST_VAR", None, "aws_us_east").value == "test_aws"
-    assert manager.get_variable("TEST_VAR", None, "gcp_us_central").value == "test_gcp"
-    assert (
-        manager.get_variable("TEST_VAR", "dev", "aws_us_east").value == "test_dev"
-    )  # Env takes precedence over location
-    assert (
-        manager.get_variable("TEST_VAR", "prod", "gcp_us_central").value == "test_prod"
-    )  # Env takes precedence over location
+    test_var_default = manager.get_variable("TEST_VAR", None, None)
+    assert test_var_default and test_var_default.value == "test_default"
+    test_var_dev = manager.get_variable("TEST_VAR", "dev", None)
+    assert test_var_dev and test_var_dev.value == "test_dev"
+    test_var_prod = manager.get_variable("TEST_VAR", "prod", None)
+    assert test_var_prod and test_var_prod.value == "test_prod"
+    test_var_aws = manager.get_variable("TEST_VAR", None, "aws_us_east")
+    assert test_var_aws and test_var_aws.value == "test_aws"
+    test_var_gcp = manager.get_variable("TEST_VAR", None, "gcp_us_central")
+    assert test_var_gcp and test_var_gcp.value == "test_gcp"
+    test_var_dev_aws = manager.get_variable("TEST_VAR", "dev", "aws_us_east")
+    assert test_var_dev_aws and test_var_dev_aws.value == "test_dev"  # Env takes precedence over location
+    test_var_prod_gcp = manager.get_variable("TEST_VAR", "prod", "gcp_us_central")
+    assert test_var_prod_gcp and test_var_prod_gcp.value == "test_prod"  # Env takes precedence over location
 
 
 def test_load_from_yaml_empty_config(tmp_path):
@@ -249,7 +259,8 @@ environment_variables:
     assert not manager.environments
     assert not manager.locations
     assert "VAR1" in manager.variables
-    assert manager.get_variable("VAR1", None, None).value == "value1"
+    var1 = manager.get_variable("VAR1", None, None)
+    assert var1 and var1.value == "value1"
 
 
 # Test cases for DuplicateKeyError and SafeLoaderWithDuplicatesCheck

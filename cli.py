@@ -16,14 +16,17 @@ error_console = Console(stderr=True)
 
 @app.command(name="init")
 def init_envars(
+    ctx: typer.Context,
     app_name: str = typer.Option(..., "--app", "-a", help="Application name."),
     env: str = typer.Option(..., "--env", "-e", help="Comma-separated list of environments."),
     loc: str = typer.Option(..., "--loc", "-l", help="Comma-separated list of locations in name:id format."),
     kms_key: str = typer.Option(None, "--kms-key", "-k", help="Global KMS key."),
-    file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing envars.yml file."),
 ):
     """Initializes a new envars.yml file."""
+    assert ctx.parent is not None
+    file_path = ctx.parent.params["file_path"]
+
     if os.path.exists(file_path) and not force:
         error_console.print(f"[bold red]Error:[/] {file_path} already exists. Use --force to overwrite.")
         raise typer.Exit(code=1)
@@ -237,6 +240,14 @@ def print_envars(
     """Prints the contents of the envars.yml file in a human-readable format."""
     manager = ctx.obj
 
+    if env and env not in manager.environments:
+        error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
+        raise typer.Exit(code=1)
+
+    if loc and not any(l.name == loc for l in manager.locations.values()):
+        error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
+        raise typer.Exit(code=1)
+
     # VAR=value format when both env and loc are specified
     if env and loc:
         for var_name in manager.variables:
@@ -288,11 +299,30 @@ def print_envars(
 @app.command(name="exec", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def exec_command(
     ctx: typer.Context,
-    env: str = typer.Option(..., "--env", "-e", help="Environment for context."),
     loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    env: str | None = typer.Option(
+        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
+    ),
 ):
     """Populates the environment and executes a command."""
+    if env is None:
+        env = os.environ.get("STAGE")
+        if env is None:
+            error_console.print(
+                "[bold red]Error:[/] The --env option is required if the STAGE environment variable is not set."
+            )
+            raise typer.Exit(code=1)
+
     manager = ctx.obj
+
+    if env not in manager.environments:
+        error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
+        raise typer.Exit(code=1)
+
+    if not any(l.name == loc for l in manager.locations.values()):
+        error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
+        raise typer.Exit(code=1)
+
     new_env = os.environ.copy()
     command = ctx.args
 
