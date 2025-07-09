@@ -9,26 +9,30 @@ console = Console()
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
-    """A CLI for managing environment variables."""
+def main(
+    ctx: typer.Context, file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file.")
+):
     if ctx.invoked_subcommand is None:
         console.print("[bold green]Welcome to the Envars CLI![/]")
         console.print("Use 'print' to load and display an envars file.")
+        return
 
-
-@app.command(name="print")
-def print_envars(
-    file_path: str = typer.Argument("envars.yml", help="Path to the envars.yml file."),
-    env: str = typer.Option(None, "--env", "-e", help="Filter by environment."),
-    loc: str = typer.Option(None, "--loc", "-l", help="Filter by location."),
-):
-    """Prints the contents of the envars.yml file in a human-readable format."""
     try:
         manager = load_from_yaml(file_path)
+        ctx.obj = manager
     except Exception as e:
         console.print(f"[bold red]Error loading envars file:[/] {e}")
         raise typer.Exit(code=1)
 
+
+@app.command(name="print")
+def print_envars(
+    ctx: typer.Context,
+    env: str = typer.Option(None, "--env", "-e", help="Filter by environment."),
+    loc: str = typer.Option(None, "--loc", "-l", help="Filter by location."),
+):
+    """Prints the contents of the envars.yml file in a human-readable format."""
+    manager = ctx.obj
     tree = Tree("[bold green]Envars Configuration[/]")
 
     # Environments
