@@ -89,6 +89,7 @@ def add_env_var(
     env: str = typer.Option(None, "--env", "-e", help="Environment name."),
     loc: str = typer.Option(None, "--loc", "-l", help="Location name."),
     secret: bool = typer.Option(False, "--secret", "-s", help="Encrypt the variable value."),
+    no_secret: bool = typer.Option(False, "--no-secret", help="Store a sensitive variable as plaintext."),
     description: str = typer.Option(None, "--description", "-d", help="Description for the variable."),
 ):
     """Adds or updates an environment variable in the envars.yml file."""
@@ -104,6 +105,15 @@ def add_env_var(
 
     if var_name.upper() != var_name:
         error_console.print("[bold red]Error:[/] Variable names must be uppercase.")
+        raise typer.Exit(code=1)
+
+    # Check for sensitive variable names
+    sensitive_keywords = ["PASSWORD", "TOKEN", "SECRET", "KEY"]
+    if any(keyword in var_name for keyword in sensitive_keywords) and not secret and not no_secret:
+        error_console.print(
+            f"[bold red]Error:[/] Variable '{var_name}' may be sensitive. "
+            "Use --secret to encrypt or --no-secret to store as plaintext."
+        )
         raise typer.Exit(code=1)
 
     # Ensure variable exists
@@ -422,6 +432,54 @@ def set_systemd_env(
         raise typer.Exit(code=1)
     except subprocess.CalledProcessError as e:
         error_console.print(f"[bold red]Error setting systemd environment variables:[/] {e.stderr}")
+        raise typer.Exit(code=1) from e
+
+
+@app.command(name="config")
+def config_command(
+    ctx: typer.Context,
+    kms_key: str = typer.Option(None, "--kms-key", "-k", help="Global KMS key."),
+    add_env: str = typer.Option(None, "--add-env", help="Add a new environment."),
+    remove_env: str = typer.Option(None, "--remove-env", help="Remove an environment."),
+    add_loc: str = typer.Option(None, "--add-loc", help="Add a new location in name:id format."),
+    remove_loc: str = typer.Option(None, "--remove-loc", help="Remove a location by name."),
+    description_mandatory: bool = typer.Option(
+        None,
+        "--description-mandatory/--no-description-mandatory",
+        help="Require descriptions for all variables.",
+    ),
+):
+    """Updates the configuration in the envars.yml file."""
+    manager = ctx.obj
+    assert ctx.parent is not None
+    file_path = ctx.parent.params["file_path"]
+
+    if kms_key:
+        manager.kms_key = kms_key
+    if add_env:
+        manager.add_environment(Environment(name=add_env))
+    if remove_env:
+        if remove_env in manager.environments:
+            del manager.environments[remove_env]
+    if add_loc:
+        try:
+            name, loc_id = add_loc.split(":", 1)
+            manager.add_location(Location(name=name, location_id=loc_id))
+        except ValueError as e:
+            error_console.print(f"[bold red]Error:[/] Invalid location format: {add_loc}. Use name:id.")
+            raise typer.Exit(code=1) from e
+    if remove_loc:
+        loc_to_remove = next((loc for loc in manager.locations.values() if loc.name == remove_loc), None)
+        if loc_to_remove:
+            del manager.locations[loc_to_remove.location_id]
+    if description_mandatory is not None:
+        manager.description_mandatory = description_mandatory
+
+    try:
+        write_envars_yml(manager, file_path)
+        console.print("[bold green]Successfully updated configuration.[/]")
+    except Exception as e:
+        error_console.print(f"[bold red]Error writing to envars file:[/] {e}")
         raise typer.Exit(code=1) from e
 
 

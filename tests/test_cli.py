@@ -702,6 +702,76 @@ environment_variables:
     assert "Variable 'MY_VAR' is missing a description." in result.stderr
 
 
+def test_config_command(tmp_path):
+    initial_content = """
+configuration:
+  app: MyApp
+  kms_key: "old-kms-key"
+  description_mandatory: false
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+
+    # Test updating kms_key
+    result = runner.invoke(app, ["--file", file_path, "config", "--kms-key", "new-kms-key"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert data["configuration"]["kms_key"] == "new-kms-key"
+
+    # Test adding an environment
+    result = runner.invoke(app, ["--file", file_path, "config", "--add-env", "prod"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert "prod" in data["configuration"]["environments"]
+
+    # Test removing an environment
+    result = runner.invoke(app, ["--file", file_path, "config", "--remove-env", "dev"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert "dev" not in data["configuration"]["environments"]
+
+    # Test adding a location
+    result = runner.invoke(app, ["--file", file_path, "config", "--add-loc", "new_loc:loc456"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert {"new_loc": "loc456"} in data["configuration"]["locations"]
+
+    # Test removing a location
+    result = runner.invoke(app, ["--file", file_path, "config", "--remove-loc", "my_loc"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert {"my_loc": "loc123"} not in data["configuration"]["locations"]
+
+    # Test updating description_mandatory
+    result = runner.invoke(app, ["--file", file_path, "config", "--description-mandatory"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert data["configuration"]["description_mandatory"] is True
+
+    result = runner.invoke(app, ["--file", file_path, "config", "--no-description-mandatory"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert data["configuration"]["description_mandatory"] is False
+
+
+def test_add_sensitive_variable_no_flag(tmp_path):
+    file_path = create_envars_file(tmp_path)
+    result = runner.invoke(app, ["--file", file_path, "add", "MY_PASSWORD=my_value"])
+    assert result.exit_code == 1
+    assert "Variable 'MY_PASSWORD' may be sensitive." in result.stderr
+
+
+def test_add_sensitive_variable_no_secret_flag(tmp_path):
+    file_path = create_envars_file(tmp_path)
+    result = runner.invoke(app, ["--file", file_path, "add", "MY_PASSWORD=my_value", "--no-secret"])
+    assert result.exit_code == 0
+    data = read_yaml_file(file_path)
+    assert data["environment_variables"]["MY_PASSWORD"]["default"] == "my_value"
+
+
 def test_load_from_yaml_invalid_structure(tmp_path):
     initial_content = """
 configuration:

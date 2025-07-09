@@ -6,10 +6,11 @@ Envars2 is a powerful command-line tool for managing environment variables acros
 
 - **Centralized Configuration**: Manage all your environment variables in a single `envars.yml` file.
 - **Hierarchical Scopes**: Define variables at different levels (default, environment, location, or specific combinations) and let the tool resolve the correct value based on the context.
-- **Secrets Management**: Encrypt and decrypt sensitive values using AWS KMS or Google Cloud KMS.
+- **Secrets Management**: Encrypt and decrypt sensitive values using AWS KMS or Google Cloud KMS. Envars2 uses encryption contexts, which means you can use IAM policies to control who can decrypt secrets for a specific environment and location.
 - **Flexible Commands**:
   - `init`: Initialize a new `envars.yml` file.
   - `add`: Add or update variables.
+  - `config`: Update the configuration.
   - `print`: Display resolved variables in different formats.
   - `exec`: Execute a command with the resolved environment variables.
   - `yaml`: Output resolved variables as a YAML object.
@@ -17,6 +18,7 @@ Envars2 is a powerful command-line tool for managing environment variables acros
   - `validate`: Validate the `envars.yml` file for logical consistency.
 - **Shell Integration**: Use the `STAGE` environment variable to set the default environment for the `exec`, `yaml`, and `set-systemd-env` commands.
 - **Strict Validation**: Enforces uppercase variable names and correct structure.
+- **Safety Features**: Warns you when you might be adding a sensitive variable without encryption and requires you to be explicit.
 
 ## Installation
 
@@ -118,8 +120,26 @@ envars2 add <VAR=value> [OPTIONS]
   ```bash
   envars2 add MY_SECRET=super_secret --secret
   ```
+- Add a sensitive variable as plaintext:
+  ```bash
+  envars2 add MY_PASSWORD=not_a_secret --no-secret
+  ```
 
-### `print`
+### `config`
+
+Update the configuration in the `envars.yml` file.
+
+**Syntax:**
+
+```bash
+envars2 config [OPTIONS]
+```
+
+**Example:**
+
+```bash
+envars2 config --kms-key new-kms-key --add-env test --remove-loc gcp
+```
 
 Print the resolved variables for a given context.
 
