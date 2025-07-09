@@ -1,7 +1,10 @@
 import base64
 import json
+import warnings
 
 from google.cloud import kms_v1
+
+warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
 
 class GCPKMSAgent:
