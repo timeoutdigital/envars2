@@ -348,3 +348,23 @@ environment_variables:
     assert "default2" in result.stdout
     assert "aws2" in result.stdout
     assert "gcp_dev2" in result.stdout
+
+
+def test_print_with_env_and_loc(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    assert "MY_VAR=dev_loc_value" in result.stdout
+    assert "Envars Configuration" not in result.stdout
