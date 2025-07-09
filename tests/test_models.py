@@ -267,7 +267,7 @@ def test_add_duplicate_environment(manager):
 
 def test_add_duplicate_location(manager):
     with pytest.raises(ValueError):
-        aws_loc = Location(name="AWS")
+        aws_loc = next(loc for loc in manager.locations.values() if loc.name == "AWS")
         manager.add_location(Location(name="AWS", location_id=aws_loc.location_id))
 
 
