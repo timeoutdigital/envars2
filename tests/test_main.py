@@ -1,8 +1,8 @@
 import pytest
 import yaml
 
-from src.envars.main import DuplicateKeyError, SafeLoaderWithDuplicatesCheck, load_from_yaml
-from src.envars.models import VariableManager
+from src.envars.main import DuplicateKeyError, SafeLoaderWithDuplicatesCheck, load_from_yaml, write_envars_yml
+from src.envars.models import Environment, Location, Variable, VariableManager, VariableValue
 
 
 # Helper function to create a temporary YAML file
@@ -10,6 +10,126 @@ def create_yaml_file(tmp_path, content):
     file_path = tmp_path / "test_config.yml"
     file_path.write_text(content)
     return str(file_path)
+
+
+def test_write_envars_yml_full_config(tmp_path):
+    manager = VariableManager()
+
+    # Add environments
+    manager.add_environment(Environment(name="dev"))
+    manager.add_environment(Environment(name="prod"))
+
+    # Add locations
+    aws_loc = Location(name="aws_us_east", location_id="12345")
+    gcp_loc = Location(name="gcp_us_central", location_id="67890")
+    manager.add_location(aws_loc)
+    manager.add_location(gcp_loc)
+
+    # Add variables
+    manager.add_variable(Variable(name="API_KEY", description="API Key for external service"))
+    manager.add_variable(Variable(name="DB_URL", description="Database connection string"))
+    manager.add_variable(Variable(name="TEST_VAR"))
+
+    # Add variable values
+    manager.add_variable_value(VariableValue(variable_name="API_KEY", value="default_api_key", scope_type="DEFAULT"))
+    manager.add_variable_value(
+        VariableValue(variable_name="API_KEY", value="dev_api_key", scope_type="ENVIRONMENT", environment_name="dev")
+    )
+    manager.add_variable_value(
+        VariableValue(
+            variable_name="API_KEY",
+            value="prod_aws_api_key",
+            scope_type="SPECIFIC",
+            environment_name="prod",
+            location_id=aws_loc.location_id,
+        )
+    )
+
+    manager.add_variable_value(
+        VariableValue(variable_name="DB_URL", value="prod_db_url", scope_type="ENVIRONMENT", environment_name="prod")
+    )
+    manager.add_variable_value(
+        VariableValue(
+            variable_name="DB_URL",
+            value="dev_gcp_db_url",
+            scope_type="SPECIFIC",
+            environment_name="dev",
+            location_id=gcp_loc.location_id,
+        )
+    )
+
+    manager.add_variable_value(VariableValue(variable_name="TEST_VAR", value="test_default", scope_type="DEFAULT"))
+    manager.add_variable_value(
+        VariableValue(variable_name="TEST_VAR", value="test_dev", scope_type="ENVIRONMENT", environment_name="dev")
+    )
+    manager.add_variable_value(
+        VariableValue(variable_name="TEST_VAR", value="test_prod", scope_type="ENVIRONMENT", environment_name="prod")
+    )
+    manager.add_variable_value(
+        VariableValue(
+            variable_name="TEST_VAR", value="test_aws", scope_type="LOCATION", location_id=aws_loc.location_id
+        )
+    )
+    manager.add_variable_value(
+        VariableValue(
+            variable_name="TEST_VAR", value="test_gcp", scope_type="LOCATION", location_id=gcp_loc.location_id
+        )
+    )
+
+    output_file = tmp_path / "output.yml"
+    write_envars_yml(manager, str(output_file))
+
+    with open(output_file) as f:
+        generated_yaml = f.read()
+
+    expected_yaml = """
+configuration:
+  environments:
+  - dev
+  - prod
+  accounts:
+  - aws_us_east: '12345'
+  - gcp_us_central: '67890'
+environment_variables:
+  API_KEY:
+    description: API Key for external service
+    default: default_api_key
+    dev: dev_api_key
+    prod:
+      aws_us_east: prod_aws_api_key
+  DB_URL:
+    description: Database connection string
+    prod: prod_db_url
+    dev:
+      gcp_us_central: dev_gcp_db_url
+  TEST_VAR:
+    default: test_default
+    dev: test_dev
+    prod: test_prod
+    aws_us_east: test_aws
+    gcp_us_central: test_gcp
+"""
+    assert generated_yaml.strip() == expected_yaml.strip()
+
+    # Round-trip test: load the generated YAML and compare managers
+    loaded_manager = load_from_yaml(str(output_file))
+
+    assert len(loaded_manager.environments) == len(manager.environments)
+    assert all(env in loaded_manager.environments for env in manager.environments)
+
+    assert len(loaded_manager.locations) == len(manager.locations)
+    assert all(loc.name in [l.name for l in loaded_manager.locations.values()] for loc in manager.locations.values())
+
+    assert len(loaded_manager.variables) == len(manager.variables)
+    assert all(var in loaded_manager.variables for var in manager.variables)
+
+    # Compare variable values by iterating through all possible combinations
+    for var_name in manager.variables:
+        for env_name in list(manager.environments.keys()) + [None]:
+            for loc_name in [loc.name for loc in manager.locations.values()] + [None]:
+                expected_value = manager.get_variable_value(var_name, env_name, loc_name)
+                actual_value = loaded_manager.get_variable_value(var_name, env_name, loc_name)
+                assert expected_value == actual_value
 
 
 # Test cases for load_from_yaml

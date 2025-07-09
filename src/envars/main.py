@@ -112,6 +112,74 @@ def load_from_yaml(file_path: str) -> VariableManager:
     return manager
 
 
+def write_envars_yml(manager: VariableManager, file_path: str):
+    """Writes the VariableManager data to a YAML file."""
+    data = {
+        "configuration": {
+            "environments": [],
+            "accounts": [],
+        },
+        "environment_variables": {},
+    }
+
+    # Populate environments
+    for env_name in manager.environments.keys():
+        data["configuration"]["environments"].append(env_name)
+
+    # Populate accounts
+    for loc in manager.locations.values():
+        data["configuration"]["accounts"].append({loc.name: loc.location_id})
+
+    # Populate environment_variables
+    for var_name, variable in manager.variables.items():
+        var_data = {}
+        if variable.description:
+            var_data["description"] = variable.description
+
+        # Group variable values by scope
+        default_value = None
+        env_values = {}
+        loc_values = {}
+        specific_values = {}
+
+        for vv in manager.variable_values:
+            if vv.variable_name == var_name:
+                if vv.scope_type == "DEFAULT":
+                    default_value = vv.value
+                elif vv.scope_type == "ENVIRONMENT":
+                    env_values[vv.environment_name] = vv.value
+                elif vv.scope_type == "LOCATION":
+                    loc_values[
+                        next(loc.name for loc in manager.locations.values() if loc.location_id == vv.location_id)
+                    ] = vv.value
+                elif vv.scope_type == "SPECIFIC":
+                    if vv.environment_name not in specific_values:
+                        specific_values[vv.environment_name] = {}
+                    specific_values[vv.environment_name][
+                        next(loc.name for loc in manager.locations.values() if loc.location_id == vv.location_id)
+                    ] = vv.value
+
+        if default_value is not None:
+            var_data["default"] = default_value
+
+        for env, value in env_values.items():
+            var_data[env] = value
+
+        for loc, value in loc_values.items():
+            var_data[loc] = value
+
+        for env, loc_data in specific_values.items():
+            if env in var_data and isinstance(var_data[env], dict):
+                var_data[env].update(loc_data)
+            else:
+                var_data[env] = loc_data
+
+        data["environment_variables"][var_name] = var_data
+
+    with open(file_path, "w") as f:
+        yaml.dump(data, f, sort_keys=False)
+
+
 if __name__ == "__main__":
     try:
         manager = load_from_yaml("envars.yml")
