@@ -9,11 +9,26 @@ from envars.models import (
 )
 
 
+class DuplicateKeyError(Exception):
+    pass
+
+
+class SafeLoaderWithDuplicatesCheck(yaml.SafeLoader):
+    def construct_mapping(self, node, deep=False):
+        mapping = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise DuplicateKeyError(f"Duplicate key: {key}")
+            mapping[key] = self.construct_object(value_node, deep=deep)
+        return mapping
+
+
 def load_from_yaml(file_path: str) -> VariableManager:
     """Loads variables, environments, locations, and values from a YAML file."""
     manager = VariableManager()
     with open(file_path) as f:
-        data = yaml.safe_load(f)
+        data = yaml.load(f, Loader=SafeLoaderWithDuplicatesCheck)
 
     # Load environments
     for env_name in data.get("configuration", {}).get("environments", []):
@@ -85,17 +100,20 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
 
 if __name__ == "__main__":
-    manager = load_from_yaml("envars.yml")
+    try:
+        manager = load_from_yaml("envars.yml")
 
-    print("--- Loaded Data ---")
-    print(f"Total VariableValues loaded: {len(manager.variable_values)}")
-    print("Variables:", list(manager.variables.keys()))
-    print("Environments:", list(manager.environments.keys()))
-    print("Locations:", [loc.name for loc in manager.locations.values()])
+        print("--- Loaded Data ---")
+        print(f"Total VariableValues loaded: {len(manager.variable_values)}")
+        print("Variables:", list(manager.variables.keys()))
+        print("Environments:", list(manager.environments.keys()))
+        print("Locations:", [loc.name for loc in manager.locations.values()])
 
-    print("\n--- Retrieving Variable Values ---")
-    print(f"TEST (prod): {manager.get_variable_value('TEST', 'prod')}")
-    print(f"TEST2 (prod): {manager.get_variable_value('TEST2', 'prod')}")
-    print(f"TEST3 (default): {manager.get_variable_value('TEST3')}")
-    print(f"TEST3 (sandbox, prod): {manager.get_variable_value('TEST3', 'prod', 'sandbox')}")
-    print(f"TEST4 (prod, sandbox): {manager.get_variable_value('TEST4', 'prod', 'sandbox')}")
+        print("\n--- Retrieving Variable Values ---")
+        print(f"TEST (prod): {manager.get_variable_value('TEST', 'prod')}")
+        print(f"TEST2 (prod): {manager.get_variable_value('TEST2', 'prod')}")
+        print(f"TEST3 (default): {manager.get_variable_value('TEST3')}")
+        print(f"TEST3 (sandbox, prod): {manager.get_variable_value('TEST3', 'prod', 'sandbox')}")
+        print(f"TEST4 (prod, sandbox): {manager.get_variable_value('TEST4', 'prod', 'sandbox')}")
+    except DuplicateKeyError as e:
+        print(f"Error: {e}")
