@@ -8,13 +8,14 @@ authors = [
 dependencies = [
     "rich>=14.0.0",
     "typer>=0.16.0",
+    "pyyaml>=6.0",
 ]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 
 [project.scripts]
-envars = "cli:app" # This tells uv how to run your CLI
+envars = "envars:app"
 
 [build-system]
 requires = ["setuptools>=61.0.0"] # Removed rye
@@ -58,6 +59,7 @@ convention = "google" # Or "numpy", "pep257"
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
     "ruff>=0.12.2",
     "ty>=0.0.1a13",
 ]
