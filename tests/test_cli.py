@@ -517,3 +517,35 @@ envars:
     output_dict = yaml.safe_load(result.stdout)
     expected_dict = yaml.safe_load(expected_yaml)
     assert output_dict == expected_dict
+
+
+@patch("subprocess.run")
+def test_set_systemd_env_command(mock_run, tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+  ANOTHER_VAR:
+    default: "another_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "set-systemd-env", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    assert "Successfully set systemd environment variables" in result.stdout
+
+    mock_run.assert_called_once()
+    call_args = mock_run.call_args[0]
+    assert call_args[0] == [
+        "systemctl",
+        "--user",
+        "set-environment",
+        "MY_VAR=dev_loc_value",
+        "ANOTHER_VAR=another_value",
+    ]

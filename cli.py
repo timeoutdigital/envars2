@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import typer
 import yaml
@@ -297,15 +298,13 @@ def print_envars(
     console.print(tree)
 
 
-@app.command(name="exec", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
-def exec_command(
-    ctx: typer.Context,
-    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
-    env: str | None = typer.Option(
-        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
-    ),
-):
-    """Populates the environment and executes a command."""
+def _get_resolved_variables(
+    manager: VariableManager,
+    loc: str,
+    env: str | None,
+    decrypt: bool,
+) -> dict[str, str | Secret]:
+    """Helper function to get all resolved variables for a given context."""
     if env is None:
         env = os.environ.get("STAGE")
         if env is None:
@@ -313,8 +312,6 @@ def exec_command(
                 "[bold red]Error:[/] The --env option is required if the STAGE environment variable is not set."
             )
             raise typer.Exit(code=1)
-
-    manager = ctx.obj
 
     if env not in manager.environments:
         error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
@@ -324,26 +321,38 @@ def exec_command(
         error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
         raise typer.Exit(code=1)
 
-    new_env = os.environ.copy()
-    command = ctx.args
-
+    resolved_vars = {}
     for var_name in manager.variables:
         variable_value_obj = manager.get_variable(var_name, env, loc)
+        if variable_value_obj:
+            value = (
+                _get_decrypted_value(manager, variable_value_obj)
+                if decrypt and isinstance(variable_value_obj.value, Secret)
+                else variable_value_obj.value
+            )
+            if value == "[DECRYPTION FAILED]":
+                raise typer.Exit(code=1)
+            resolved_vars[var_name] = value
+    return resolved_vars
 
-        if variable_value_obj is None:
-            continue
 
-        value = (
-            _get_decrypted_value(manager, variable_value_obj)
-            if isinstance(variable_value_obj.value, Secret)
-            else variable_value_obj.value
-        )
+@app.command(name="exec", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def exec_command(
+    ctx: typer.Context,
+    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    env: str | None = typer.Option(
+        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
+    ),
+):
+    """Populates the environment and executes a command."""
+    manager = ctx.obj
+    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
 
-        if value == "[DECRYPTION FAILED]":
-            raise typer.Exit(code=1)
+    new_env = os.environ.copy()
+    for k, v in resolved_vars.items():
+        new_env[k] = str(v)
 
-        new_env[var_name] = str(value)
-
+    command = ctx.args
     if not command:
         error_console.print("[bold red]Error:[/] No command provided.")
         raise typer.Exit(code=1)
@@ -368,43 +377,40 @@ def yaml_command(
     decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
 ):
     """Prints the environment variables as YAML."""
-    if env is None:
-        env = os.environ.get("STAGE")
-        if env is None:
-            error_console.print(
-                "[bold red]Error:[/] The --env option is required if the STAGE environment variable is not set."
-            )
-            raise typer.Exit(code=1)
-
     manager = ctx.obj
+    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+    console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
 
-    if env not in manager.environments:
-        error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
+
+@app.command(name="set-systemd-env")
+def set_systemd_env(
+    ctx: typer.Context,
+    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    env: str | None = typer.Option(
+        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
+    ),
+    decrypt: bool = typer.Option(True, "--decrypt", "-d", help="Decrypt secret values."),
+):
+    """Sets the environment variables for a systemd user service."""
+    manager = ctx.obj
+    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+
+    if not resolved_vars:
+        console.print("No variables to set.")
+        return
+
+    command = ["systemctl", "--user", "set-environment"]
+    command.extend([f"{k}={v}" for k, v in resolved_vars.items()])
+
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+        console.print("[bold green]Successfully set systemd environment variables.[/]")
+    except FileNotFoundError:
+        error_console.print("[bold red]Error:[/] `systemctl` command not found.")
         raise typer.Exit(code=1)
-
-    if not any(l.name == loc for l in manager.locations.values()):
-        error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
-        raise typer.Exit(code=1)
-
-    envars = {}
-    for var_name in manager.variables:
-        variable_value_obj = manager.get_variable(var_name, env, loc)
-
-        if variable_value_obj is None:
-            continue
-
-        value = (
-            _get_decrypted_value(manager, variable_value_obj)
-            if decrypt and isinstance(variable_value_obj.value, Secret)
-            else variable_value_obj.value
-        )
-
-        if value == "[DECRYPTION FAILED]":
-            raise typer.Exit(code=1)
-
-        envars[var_name] = value
-
-    console.print(yaml.dump({"envars": envars}, sort_keys=False))
+    except subprocess.CalledProcessError as e:
+        error_console.print(f"[bold red]Error setting systemd environment variables:[/] {e.stderr}")
+        raise typer.Exit(code=1) from e
 
 
 if __name__ == "__main__":
