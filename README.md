@@ -138,8 +138,10 @@ envars2 config [OPTIONS]
 **Example:**
 
 ```bash
-envars2 config --kms-key new-kms-key --add-env test --remove-loc gcp
+envars2 config --kms-key new-kms-key --add-env test --remove-loc gcp --description-mandatory
 ```
+
+### `print`
 
 Print the resolved variables for a given context.
 
@@ -157,7 +159,6 @@ envars2 print [OPTIONS]
   ```
 - Print variables for a specific context in `VAR=value` format:
   ```bash
-h
   envars2 print --env dev --loc aws
   ```
 - Decrypt and print secrets:
