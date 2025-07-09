@@ -78,15 +78,16 @@ def test_location_to_dict():
     loc_id = str(uuid.uuid4())
     loc = Location(name="AWS us-east-1", location_id=loc_id)
     loc_dict = loc.to_dict()
-    assert loc_dict == {"location_id": loc_id, "name": "AWS us-east-1"}
+    assert loc_dict == {"location_id": loc_id, "name": "AWS us-east-1", "kms_key": None}
 
 
 def test_location_from_dict():
     loc_id = str(uuid.uuid4())
-    loc_data = {"location_id": loc_id, "name": "AWS us-east-1"}
+    loc_data = {"location_id": loc_id, "name": "AWS us-east-1", "kms_key": "some-key"}
     loc = Location.from_dict(loc_data)
     assert loc.name == "AWS us-east-1"
     assert loc.location_id == loc_id
+    assert loc.kms_key == "some-key"
 
 
 def test_location_repr():

@@ -59,21 +59,23 @@ class Environment:
 class Location:
     """Represents a location where variables are deployed, like an AWS account or a GCP project."""
 
-    def __init__(self, name: str, location_id: str | None = None):
+    def __init__(self, name: str, location_id: str | None = None, kms_key: str | None = None):
         self.location_id: str = location_id if location_id else str(uuid.uuid4())
         self.name: str = name
+        self.kms_key: str | None = kms_key
 
     def to_dict(self) -> dict[str, Any]:
         """Converts the Location object to a dictionary."""
         return {
             "location_id": self.location_id,
             "name": self.name,
+            "kms_key": self.kms_key,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
         """Creates a Location object from a dictionary."""
-        loc = cls(name=data["name"], location_id=data["location_id"])
+        loc = cls(name=data["name"], location_id=data["location_id"], kms_key=data.get("kms_key"))
         return loc
 
     def __repr__(self):
@@ -163,11 +165,12 @@ class VariableManager:
     In a real application, this would interact with a database.
     """
 
-    def __init__(self):
+    def __init__(self, kms_key: str | None = None):
         self.variables: dict[str, Variable] = {}
         self.environments: dict[str, Environment] = {}
         self.locations: dict[str, Location] = {}
         self.variable_values: list[VariableValue] = []
+        self.kms_key = kms_key
 
     def add_variable(self, variable: Variable):
         """Adds a Variable to the manager."""

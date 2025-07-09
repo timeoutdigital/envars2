@@ -84,6 +84,7 @@ def test_write_envars_yml_full_config(tmp_path):
 
     expected_yaml = """
 configuration:
+  kms_key: null
   environments:
   - dev
   - prod
@@ -133,6 +134,24 @@ environment_variables:
                 expected_value = manager.get_variable_value(var_name, env_name, loc_name)
                 actual_value = loaded_manager.get_variable_value(var_name, env_name, loc_name)
                 assert expected_value == actual_value
+
+
+def test_load_from_yaml_with_kms_key(tmp_path):
+    yaml_content = """
+configuration:
+  kms_key: "global-kms-key"
+  environments:
+    - prod
+  accounts:
+    - aws:
+        id: "12345"
+        kms_key: "aws-kms-key"
+"""
+    file_path = create_yaml_file(tmp_path, yaml_content)
+    manager = load_from_yaml(file_path)
+    assert manager.kms_key == "global-kms-key"
+    aws_loc = next(loc for loc in manager.locations.values() if loc.name == "aws")
+    assert aws_loc.kms_key == "aws-kms-key"
 
 
 # Test cases for load_from_yaml

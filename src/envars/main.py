@@ -26,12 +26,15 @@ class SafeLoaderWithDuplicatesCheck(yaml.SafeLoader):
 
 def load_from_yaml(file_path: str) -> VariableManager:
     """Loads variables, environments, locations, and values from a YAML file."""
-    manager = VariableManager()
     with open(file_path) as f:
         data = yaml.load(f, Loader=SafeLoaderWithDuplicatesCheck)
 
     if data is None:
-        return manager
+        return VariableManager()
+
+    # Load global KMS key
+    kms_key = data.get("configuration", {}).get("kms_key")
+    manager = VariableManager(kms_key=kms_key)
 
     # Load environments
     for env_name in data.get("configuration", {}).get("environments", []):
@@ -39,8 +42,13 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
     # Load locations (accounts)
     for acc_data in data.get("configuration", {}).get("accounts", []):
-        for acc_name, acc_id in acc_data.items():
-            manager.add_location(Location(name=acc_name, location_id=acc_id))
+        for acc_name, acc_details in acc_data.items():
+            if isinstance(acc_details, dict):
+                location_id = acc_details.get("id")
+                kms_key = acc_details.get("kms_key")
+                manager.add_location(Location(name=acc_name, location_id=location_id, kms_key=kms_key))
+            else:
+                manager.add_location(Location(name=acc_name, location_id=acc_details))
 
     # Load environment variables
     for var_name, var_data in data.get("environment_variables", {}).items():
@@ -114,13 +122,18 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
 def write_envars_yml(manager: VariableManager, file_path: str):
     """Writes the VariableManager data to a YAML file."""
+    accounts_data = []
+    for loc in sorted(manager.locations.values(), key=lambda x: x.name):
+        if loc.kms_key:
+            accounts_data.append({loc.name: {"id": loc.location_id, "kms_key": loc.kms_key}})
+        else:
+            accounts_data.append({loc.name: loc.location_id})
+
     data = {
         "configuration": {
+            "kms_key": manager.kms_key,
             "environments": sorted(list(manager.environments.keys())),
-            "accounts": sorted(
-                [{loc.name: loc.location_id} for loc in manager.locations.values()],
-                key=lambda x: list(x.keys())[0],
-            ),
+            "accounts": accounts_data,
         },
         "environment_variables": {},
     }
@@ -184,7 +197,8 @@ def write_envars_yml(manager: VariableManager, file_path: str):
             config_data = {"configuration": data["configuration"]}
             # Sort accounts list of dicts
             config_data["configuration"]["accounts"] = sorted(
-                config_data["configuration"]["accounts"], key=lambda x: list(x.keys())[0]
+                config_data["configuration"]["accounts"],
+                key=lambda x: list(x.keys())[0],
             )
             yaml.dump(config_data, f, sort_keys=False, Dumper=yaml.Dumper)
             f.write("\n")
