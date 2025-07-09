@@ -209,60 +209,122 @@ def print_envars(
     if manager.kms_key:
         tree.add(f"[bold blue]KMS Key:[/] {manager.kms_key}")
 
-    # Environments
-    if not env and not loc:
+    # Filtered view
+    if env or loc:
         env_tree = tree.add("[bold blue]Environments[/]")
         for env_name in manager.environments:
             env_tree.add(env_name)
 
-    # Locations
-    if not env and not loc:
         loc_tree = tree.add("[bold blue]Locations[/]")
         for location in manager.locations.values():
             loc_tree.add(f"{location.name} (id: {location.location_id})")
 
-    # Variables
-    var_tree = tree.add("[bold blue]Variables[/]")
-    for var_name, var in manager.variables.items():
-        variable_value_obj = manager.get_variable(var_name, env, loc)
-        if variable_value_obj:
-            value = variable_value_obj.value
-            if decrypt and isinstance(value, Secret):
-                if not manager.kms_key:
-                    error_console.print("[bold red]Error:[/] Cannot decrypt without a kms_key in configuration.")
-                    raise typer.Exit(code=1)
-
-                # Get encryption context from the variable's scope
-                encryption_context = {"app": manager.app or ""}
-                if variable_value_obj.environment_name:
-                    encryption_context["environment"] = variable_value_obj.environment_name
-                if variable_value_obj.location_id:
-                    loc_name = next(
-                        (l.name for l in manager.locations.values() if l.location_id == variable_value_obj.location_id),
-                        None,
-                    )
-                    if loc_name:
-                        encryption_context["location"] = loc_name
-
-                try:
-                    # Determine KMS provider and decrypt
-                    if manager.kms_key.startswith("arn:aws:kms:"):
-                        agent = AWSKMSAgent()
-                        value = agent.decrypt(str(value), encryption_context)
-                    elif manager.kms_key.startswith("projects/"):
-                        agent = GCPKMSAgent()
-                        key_id = manager.kms_key
-                        value = agent.decrypt(str(value), key_id, encryption_context)
-                    else:
-                        error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
+        var_tree = tree.add("[bold blue]Variables[/]")
+        for var_name, var in manager.variables.items():
+            variable_value_obj = manager.get_variable(var_name, env, loc)
+            if variable_value_obj:
+                value = variable_value_obj.value
+                if decrypt and isinstance(value, Secret):
+                    if not manager.kms_key:
+                        error_console.print("[bold red]Error:[/] Cannot decrypt without a kms_key in configuration.")
                         raise typer.Exit(code=1)
 
-                except Exception as e:
-                    error_console.print(f"[bold red]Error decrypting {var_name}:[/] {e}")
-                    value = "[DECRYPTION FAILED]"
+                    # Get encryption context from the variable's scope
+                    encryption_context = {"app": manager.app or ""}
+                    if variable_value_obj.environment_name:
+                        encryption_context["environment"] = variable_value_obj.environment_name
+                    if variable_value_obj.location_id:
+                        loc_name = next(
+                            (
+                                l.name
+                                for l in manager.locations.values()
+                                if l.location_id == variable_value_obj.location_id
+                            ),
+                            None,
+                        )
+                        if loc_name:
+                            encryption_context["location"] = loc_name
 
+                    try:
+                        # Determine KMS provider and decrypt
+                        if manager.kms_key.startswith("arn:aws:kms:"):
+                            agent = AWSKMSAgent()
+                            value = agent.decrypt(str(value), encryption_context)
+                        elif manager.kms_key.startswith("projects/"):
+                            agent = GCPKMSAgent()
+                            key_id = manager.kms_key
+                            value = agent.decrypt(str(value), key_id, encryption_context)
+                        else:
+                            error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
+                            raise typer.Exit(code=1)
+
+                    except Exception as e:
+                        error_console.print(f"[bold red]Error decrypting {var_name}:[/] {e}")
+                        value = "[DECRYPTION FAILED]"
+
+                v_tree = var_tree.add(f"[bold]{var_name}[/] - {var.description}")
+                v_tree.add(f"[cyan]Value:[/] {value}")
+    # Unfiltered view
+    else:
+        env_tree = tree.add("[bold blue]Environments[/]")
+        for env_name in manager.environments:
+            env_tree.add(env_name)
+
+        loc_tree = tree.add("[bold blue]Locations[/]")
+        for location in manager.locations.values():
+            loc_tree.add(f"{location.name} (id: {location.location_id})")
+
+        var_tree = tree.add("[bold blue]Variables[/]")
+        for var_name, var in manager.variables.items():
             v_tree = var_tree.add(f"[bold]{var_name}[/] - {var.description}")
-            v_tree.add(f"[cyan]Value:[/] {value}")
+            for vv in manager.variable_values:
+                if vv.variable_name == var_name:
+                    value = vv.value
+                    if decrypt and isinstance(value, Secret):
+                        if not manager.kms_key:
+                            error_console.print(
+                                "[bold red]Error:[/] Cannot decrypt without a kms_key in configuration."
+                            )
+                            raise typer.Exit(code=1)
+
+                        # Get encryption context from the variable's scope
+                        encryption_context = {"app": manager.app or ""}
+                        if vv.environment_name:
+                            encryption_context["environment"] = vv.environment_name
+                        if vv.location_id:
+                            loc_name = next(
+                                (l.name for l in manager.locations.values() if l.location_id == vv.location_id),
+                                None,
+                            )
+                            if loc_name:
+                                encryption_context["location"] = loc_name
+                        try:
+                            # Determine KMS provider and decrypt
+                            if manager.kms_key.startswith("arn:aws:kms:"):
+                                agent = AWSKMSAgent()
+                                value = agent.decrypt(str(value), encryption_context)
+                            elif manager.kms_key.startswith("projects/"):
+                                agent = GCPKMSAgent()
+                                key_id = manager.kms_key
+                                value = agent.decrypt(str(value), key_id, encryption_context)
+                            else:
+                                error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
+                                raise typer.Exit(code=1)
+
+                        except Exception as e:
+                            error_console.print(f"[bold red]Error decrypting {var_name}:[/] {e}")
+                            value = "[DECRYPTION FAILED]"
+
+                    scope_str = f"Scope: {vv.scope_type}"
+                    if vv.environment_name:
+                        scope_str += f", Env: {vv.environment_name}"
+                    if vv.location_id:
+                        loc_name = next(
+                            (l.name for l in manager.locations.values() if l.location_id == vv.location_id),
+                            "Unknown",
+                        )
+                        scope_str += f", Loc: {loc_name}"
+                    v_tree.add(f"({scope_str}) [cyan]Value:[/] {value}")
 
     console.print(tree)
 

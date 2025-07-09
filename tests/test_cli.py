@@ -317,3 +317,34 @@ environment_variables:
     )
     assert result.exit_code == 0
     assert "var=dev_loc_value, args=--my-flag my-value" in result.stdout
+
+
+def test_print_no_options(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+    - prod
+  locations:
+    - aws: "123"
+    - gcp: "456"
+environment_variables:
+  VAR1:
+    default: "default1"
+    dev: "dev1"
+    prod: "prod1"
+  VAR2:
+    default: "default2"
+    aws: "aws2"
+    gcp:
+      dev: "gcp_dev2"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print"])
+    assert result.exit_code == 0
+    assert "default1" in result.stdout
+    assert "dev1" in result.stdout
+    assert "prod1" in result.stdout
+    assert "default2" in result.stdout
+    assert "aws2" in result.stdout
+    assert "gcp_dev2" in result.stdout
