@@ -90,6 +90,7 @@ configuration:
   accounts:
   - aws_us_east: '12345'
   - gcp_us_central: '67890'
+
 environment_variables:
   API_KEY:
     description: API Key for external service
@@ -97,11 +98,13 @@ environment_variables:
     dev: dev_api_key
     prod:
       aws_us_east: prod_aws_api_key
+
   DB_URL:
     description: Database connection string
     prod: prod_db_url
     dev:
       gcp_us_central: dev_gcp_db_url
+
   TEST_VAR:
     default: test_default
     dev: test_dev

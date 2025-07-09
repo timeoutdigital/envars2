@@ -116,22 +116,18 @@ def write_envars_yml(manager: VariableManager, file_path: str):
     """Writes the VariableManager data to a YAML file."""
     data = {
         "configuration": {
-            "environments": [],
-            "accounts": [],
+            "environments": sorted(list(manager.environments.keys())),
+            "accounts": sorted(
+                [{loc.name: loc.location_id} for loc in manager.locations.values()],
+                key=lambda x: list(x.keys())[0],
+            ),
         },
         "environment_variables": {},
     }
 
-    # Populate environments
-    for env_name in manager.environments.keys():
-        data["configuration"]["environments"].append(env_name)
-
-    # Populate accounts
-    for loc in manager.locations.values():
-        data["configuration"]["accounts"].append({loc.name: loc.location_id})
-
     # Populate environment_variables
-    for var_name, variable in manager.variables.items():
+    sorted_vars = sorted(manager.variables.items())
+    for var_name, variable in sorted_vars:
         var_data = {}
         if variable.description:
             var_data["description"] = variable.description
@@ -149,35 +145,73 @@ def write_envars_yml(manager: VariableManager, file_path: str):
                 elif vv.scope_type == "ENVIRONMENT":
                     env_values[vv.environment_name] = vv.value
                 elif vv.scope_type == "LOCATION":
-                    loc_values[
-                        next(loc.name for loc in manager.locations.values() if loc.location_id == vv.location_id)
-                    ] = vv.value
+                    loc_name = next(
+                        (loc.name for loc in manager.locations.values() if loc.location_id == vv.location_id),
+                        None,
+                    )
+                    if loc_name:
+                        loc_values[loc_name] = vv.value
                 elif vv.scope_type == "SPECIFIC":
-                    if vv.environment_name not in specific_values:
-                        specific_values[vv.environment_name] = {}
-                    specific_values[vv.environment_name][
-                        next(loc.name for loc in manager.locations.values() if loc.location_id == vv.location_id)
-                    ] = vv.value
+                    loc_name = next(
+                        (loc.name for loc in manager.locations.values() if loc.location_id == vv.location_id),
+                        None,
+                    )
+                    if loc_name:
+                        if vv.environment_name not in specific_values:
+                            specific_values[vv.environment_name] = {}
+                        specific_values[vv.environment_name][loc_name] = vv.value
 
         if default_value is not None:
             var_data["default"] = default_value
 
-        for env, value in env_values.items():
+        for env, value in sorted(env_values.items()):
             var_data[env] = value
 
-        for loc, value in loc_values.items():
+        for loc, value in sorted(loc_values.items()):
             var_data[loc] = value
 
-        for env, loc_data in specific_values.items():
+        for env, loc_data in sorted(specific_values.items()):
             if env in var_data and isinstance(var_data[env], dict):
-                var_data[env].update(loc_data)
+                var_data[env].update(sorted(loc_data.items()))
             else:
-                var_data[env] = loc_data
+                var_data[env] = dict(sorted(loc_data.items()))
 
         data["environment_variables"][var_name] = var_data
 
     with open(file_path, "w") as f:
-        yaml.dump(data, f, sort_keys=False)
+        # Dump configuration if it exists
+        if any(data["configuration"].values()):
+            config_data = {"configuration": data["configuration"]}
+            # Sort accounts list of dicts
+            config_data["configuration"]["accounts"] = sorted(
+                config_data["configuration"]["accounts"], key=lambda x: list(x.keys())[0]
+            )
+            yaml.dump(config_data, f, sort_keys=False, Dumper=yaml.Dumper)
+            f.write("\n")
+
+        # Dump environment variables
+        if data["environment_variables"]:
+            f.write("environment_variables:\n")
+
+            # Sort variables for consistent output
+            sorted_env_vars = sorted(data["environment_variables"].items())
+
+            for i, (var_name, var_data) in enumerate(sorted_env_vars):
+                var_dict = {var_name: var_data}
+                var_yaml_str = yaml.dump(
+                    var_dict,
+                    sort_keys=False,
+                    indent=2,
+                    Dumper=yaml.Dumper,
+                    default_flow_style=False,
+                )
+
+                # Indent the whole block
+                indented_var_yaml = "".join(["  " + line + "\n" for line in var_yaml_str.splitlines()])
+                f.write(indented_var_yaml)
+
+                if i < len(sorted_env_vars) - 1:
+                    f.write("\n")
 
 
 if __name__ == "__main__":
