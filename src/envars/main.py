@@ -1,6 +1,6 @@
 import yaml
 
-from envars.models import (
+from src.envars.models import (
     Environment,
     Location,
     Variable,
@@ -29,6 +29,9 @@ def load_from_yaml(file_path: str) -> VariableManager:
     manager = VariableManager()
     with open(file_path) as f:
         data = yaml.load(f, Loader=SafeLoaderWithDuplicatesCheck)
+
+    if data is None:
+        return manager
 
     # Load environments
     for env_name in data.get("configuration", {}).get("environments", []):
@@ -83,18 +86,28 @@ def load_from_yaml(file_path: str) -> VariableManager:
             elif key in [loc.name for loc in manager.locations.values()]:
                 loc_name = key
                 loc = next((loc for loc in manager.locations.values() if loc.name == loc_name), None)
-                if loc and isinstance(value, dict):
-                    for env_name, env_value in value.items():
-                        if env_name in manager.environments:
-                            manager.add_variable_value(
-                                VariableValue(
-                                    variable_name=var_name,
-                                    value=env_value,
-                                    scope_type="SPECIFIC",
-                                    environment_name=env_name,
-                                    location_id=loc.location_id,
+                if loc:
+                    if isinstance(value, dict):
+                        for env_name, env_value in value.items():
+                            if env_name in manager.environments:
+                                manager.add_variable_value(
+                                    VariableValue(
+                                        variable_name=var_name,
+                                        value=env_value,
+                                        scope_type="SPECIFIC",
+                                        environment_name=env_name,
+                                        location_id=loc.location_id,
+                                    )
                                 )
+                    else:
+                        manager.add_variable_value(
+                            VariableValue(
+                                variable_name=var_name,
+                                value=value,
+                                scope_type="LOCATION",
+                                location_id=loc.location_id,
                             )
+                        )
 
     return manager
 
