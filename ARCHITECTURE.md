@@ -37,11 +37,9 @@ This diagram breaks down the `envars2` application into its major components.
 ```mermaid
 graph TD
     subgraph "Envars2 Application"
-        A[CLI (cli.py)] -- "Uses" --> B(Core Logic)
-        B[Core Logic (src/envars/main.py)] -- "Uses" --> C(Data Models)
-        C[Data Models (src/envars/models.py)]
-        B -- "Uses" --> D(Cloud Integrations)
-        D[Cloud Integrations (src/envars/aws_*, src/envars/gcp_*)]
+        A["CLI (cli.py)"] -- "Uses" --> B["Core Logic (src/envars/main.py)"]
+        B -- "Uses" --> C["Data Models (src/envars/models.py)"]
+        B -- "Uses" --> D["Cloud Integrations (src/envars/aws_*, src/envars/gcp_*)"]
     end
 ```
 
@@ -52,9 +50,9 @@ This diagram zooms in on the `envars-cli` container and shows the key components
 ```mermaid
 graph TD
     subgraph "CLI (cli.py)"
-        A[Commands (init, add, etc.)] -- "Use" --> B(Helper Functions)
-        B[_get_resolved_variables] -- "Uses" --> C(Jinja2 Templating)
-        B -- "Uses" --> D(Cloud Clients)
+        A["Commands (init, add, etc.)"] -- "Use" --> B["Helper Functions"]
+        B["_get_resolved_variables"] -- "Uses" --> C["Jinja2 Templating"]
+        B -- "Uses" --> D["Cloud Clients"]
     end
 ```
 
