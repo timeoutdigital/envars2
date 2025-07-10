@@ -1,5 +1,8 @@
 import os
 import subprocess
+import warnings
+
+warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
 import typer
 import yaml
@@ -239,6 +242,12 @@ def add_env_var(
 
     manager.add_variable_value(new_var_value)
 
+    # Check for circular dependencies
+    all_vars = {}
+    for vv in manager.variable_values:
+        all_vars[vv.variable_name] = vv.value
+    _check_for_circular_dependencies(all_vars)
+
     try:
         write_envars_yml(manager, file_path)
         console.print(f"[bold green]Successfully added/updated {var_name} in {file_path}[/]")
@@ -337,6 +346,42 @@ def tree_command(
     console.print(tree)
 
 
+def _check_for_circular_dependencies(variables: dict[str, str | Secret]):
+    """Checks for circular dependencies in templated variables."""
+    from collections import deque
+
+    from jinja2 import meta
+
+    jinja_env = Environment()
+    adj = {v: [] for v in variables}
+    in_degree = dict.fromkeys(variables, 0)
+    for var_name, value in variables.items():
+        if isinstance(value, str):
+            try:
+                ast = jinja_env.parse(value)
+                deps = meta.find_undeclared_variables(ast) - {"env"}
+                for dep in deps:
+                    if dep in variables:
+                        adj[dep].append(var_name)
+                        in_degree[var_name] += 1
+            except Exception:
+                pass
+    queue = deque([v for v in variables if in_degree[v] == 0])
+    sorted_order = []
+    while queue:
+        u = queue.popleft()
+        sorted_order.append(u)
+        for v in adj.get(u, []):
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                queue.append(v)
+    if len(sorted_order) != len(variables):
+        cycle_nodes = sorted(list(set(variables.keys()) - set(sorted_order)))
+        error_console.print(f"[bold red]Error:[/] Circular dependency detected in variables: {', '.join(cycle_nodes)}")
+        raise typer.Exit(code=1)
+    return sorted_order
+
+
 def _get_resolved_variables(
     manager: VariableManager,
     loc: str,
@@ -374,12 +419,22 @@ def _get_resolved_variables(
             resolved_vars[var_name] = value
 
     # Template substitution with Jinja2
+    sorted_order = _check_for_circular_dependencies(resolved_vars)
     jinja_env = Environment()
-    for i in range(len(resolved_vars)):  # Loop to handle nested templates
-        for var_name, value in resolved_vars.items():
-            if isinstance(value, str):
+    rendered = {}
+    for var_name in sorted_order:
+        value = resolved_vars[var_name]
+        if isinstance(value, str):
+            try:
                 template = jinja_env.from_string(value)
-                resolved_vars[var_name] = template.render(env=os.environ, **resolved_vars)
+                context = {"env": os.environ}
+                context.update(rendered)
+                rendered[var_name] = template.render(context)
+            except Exception:
+                rendered[var_name] = value
+        else:
+            rendered[var_name] = value
+    resolved_vars = rendered
 
     # Parameter Store substitution
     ssm_store = SSMParameterStore()
@@ -651,6 +706,15 @@ def validate_command(
                     errors.append(f"Variable '{vv.variable_name}' uses 'gcp_secret_manager:' with an AWS KMS key.")
                 if manager.cloud_provider == "gcp" and vv.value.startswith("parameter_store:"):
                     errors.append(f"Variable '{vv.variable_name}' uses 'parameter_store:' with a GCP KMS key.")
+
+    # Check for circular dependencies
+    all_vars = {}
+    for vv in manager.variable_values:
+        all_vars[vv.variable_name] = vv.value
+    try:
+        _check_for_circular_dependencies(all_vars)
+    except typer.Exit:
+        errors.append("Circular dependency detected in templated variables.")
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")

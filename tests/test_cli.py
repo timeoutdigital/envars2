@@ -971,3 +971,49 @@ environment_variables:
     mock_gcp_instance.access_secret_version.assert_called_once_with(
         "projects/my-gcp-project/secrets/my-secret/versions/latest"
     )
+
+
+def test_circular_dependency_in_templates(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  VAR_A:
+    default: "Value is {{ VAR_B }}"
+  VAR_B:
+    default: "Value is {{ VAR_C }}"
+  VAR_C:
+    default: "Value is {{ VAR_A }}"
+  VAR_D:
+    default: "I am not in a cycle"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 1
+    assert "Circular dependency detected" in result.stderr
+    assert "VAR_A" in result.stderr
+    assert "VAR_B" in result.stderr
+    assert "VAR_C" in result.stderr
+    assert "VAR_D" not in result.stderr
+
+
+def test_validate_circular_dependency(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  VAR_A:
+    default: "Value is {{ VAR_B }}"
+  VAR_B:
+    default: "Value is {{ VAR_A }}"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 1
+    assert "Circular dependency detected" in result.stderr
