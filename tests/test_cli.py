@@ -241,7 +241,7 @@ environment_variables:
 """
     file_path = create_envars_file(tmp_path, initial_content)
 
-    # Test with --decrypt flag
+    # Test that print decrypts by default
     result = runner.invoke(
         app,
         [
@@ -252,7 +252,6 @@ environment_variables:
             "dev",
             "--loc",
             "my_loc",
-            "--decrypt",
         ],
     )
     assert result.exit_code == 0
@@ -264,23 +263,6 @@ environment_variables:
         "encrypted_value\n",
         {"app": "MyApp", "environment": "dev", "location": "my_loc"},
     )
-
-    # Test without --decrypt flag
-    result = runner.invoke(
-        app,
-        [
-            "--file",
-            file_path,
-            "print",
-            "--env",
-            "dev",
-            "--loc",
-            "my_loc",
-        ],
-    )
-    assert result.exit_code == 0
-    assert "encrypted_value" in result.stdout
-    assert "decrypted_value" not in result.stdout
 
 
 @patch("os.execvpe")
@@ -425,6 +407,12 @@ environment_variables:
 """
     file_path = create_envars_file(tmp_path, initial_content)
     result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    assert "MY_VAR=dev_loc_value" in result.stdout
+
+    # Test with STAGE environment variable
+    with patch.dict("os.environ", {"STAGE": "dev"}):
+        result = runner.invoke(app, ["--file", file_path, "print", "--loc", "my_loc"])
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout
 

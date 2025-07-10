@@ -295,9 +295,8 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
 @app.command(name="print")
 def print_envars(
     ctx: typer.Context,
-    env: str = typer.Option(..., "--env", "-e", help="Filter by environment."),
+    env: str | None = typer.Option(None, "--env", "-e", help="Filter by environment."),
     loc: str | None = typer.Option(None, "--loc", "-l", help="Filter by location."),
-    decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
 ):
     """Prints the resolved variables for a given context."""
     manager = ctx.obj
@@ -307,7 +306,7 @@ def print_envars(
             error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
             raise typer.Exit(code=1)
 
-    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
     for k, v in resolved_vars.items():
         console.print(f"{k}={v}")
 
