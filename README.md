@@ -332,6 +332,22 @@ envars2 validate
 envars2 validate
 ```
 
+### `rotate-kms-key`
+
+Rotates the KMS key and re-encrypts all secrets to a new file.
+
+**Syntax:**
+
+```bash
+envars2 rotate-kms-key --new-kms-key <new_key_arn_or_id> --output-file <new_file_path>
+```
+
+**Example:**
+
+```bash
+envars2 rotate-kms-key --new-kms-key "arn:aws:kms:us-east-1:123456789012:key/new-key" --output-file envars.new.yml
+```
+
 ## Development
 
 To set up the development environment, clone the repository and install the dependencies using `uv`:

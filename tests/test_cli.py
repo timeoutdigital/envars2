@@ -833,8 +833,9 @@ environment_variables:
     assert output_dict["envars"]["PORT"] == "5432"
 
 
+@patch("cli.GCPSecretManager")
 @patch("cli.SSMParameterStore")
-def test_variable_from_parameter_store(mock_ssm_store, tmp_path):
+def test_variable_from_parameter_store(mock_ssm_store, mock_gcp_secret_manager, tmp_path):
     mock_ssm_instance = mock_ssm_store.return_value
     mock_ssm_instance.get_parameter.return_value = "ssm_value"
 

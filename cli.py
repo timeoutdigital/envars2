@@ -538,6 +538,77 @@ def config_command(
         raise typer.Exit(code=1) from e
 
 
+@app.command(name="rotate-kms-key")
+def rotate_kms_key(
+    ctx: typer.Context,
+    new_kms_key: str = typer.Option(..., "--new-kms-key", help="The new KMS key to use for encryption."),
+    output_file: str = typer.Option("envars.new.yml", "--output-file", help="The name of the new envars.yml file."),
+):
+    """Rotates the KMS key and re-encrypts all secrets."""
+    manager = ctx.obj
+    new_manager = VariableManager(
+        app=manager.app,
+        kms_key=new_kms_key,
+        description_mandatory=manager.description_mandatory,
+    )
+
+    for env in manager.environments.values():
+        new_manager.add_environment(env)
+    for loc in manager.locations.values():
+        new_manager.add_location(loc)
+    for var in manager.variables.values():
+        new_manager.add_variable(var)
+
+    for vv in manager.variable_values:
+        if isinstance(vv.value, Secret):
+            decrypted_value = _get_decrypted_value(manager, vv)
+            if decrypted_value == "[DECRYPTION FAILED]":
+                error_console.print(f"[bold red]Error:[/] Failed to decrypt '{vv.variable_name}'. Aborting.")
+                raise typer.Exit(code=1)
+
+            # Re-encrypt with the new key
+            new_manager.kms_key = new_kms_key
+            encryption_context = {
+                "app": new_manager.app or "",
+            }
+            if vv.environment_name:
+                encryption_context["environment"] = vv.environment_name
+            if vv.location_id:
+                loc_name = next(
+                    (l.name for l in new_manager.locations.values() if l.location_id == vv.location_id), None
+                )
+                if loc_name:
+                    encryption_context["location"] = loc_name
+
+            if new_kms_key.startswith("arn:aws:kms:"):
+                agent = AWSKMSAgent()
+                encrypted_value = agent.encrypt(decrypted_value, new_kms_key, encryption_context)
+            elif new_kms_key.startswith("projects/"):
+                agent = GCPKMSAgent()
+                encrypted_value = agent.encrypt(decrypted_value, new_kms_key, encryption_context)
+            else:
+                error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {new_kms_key}")
+                raise typer.Exit(code=1)
+
+            new_var_value = VariableValue(
+                variable_name=vv.variable_name,
+                value=Secret(encrypted_value),
+                scope_type=vv.scope_type,
+                environment_name=vv.environment_name,
+                location_id=vv.location_id,
+            )
+            new_manager.add_variable_value(new_var_value)
+        else:
+            new_manager.add_variable_value(vv)
+
+    try:
+        write_envars_yml(new_manager, output_file)
+        console.print(f"[bold green]Successfully rotated KMS key and wrote new configuration to {output_file}[/]")
+    except Exception as e:
+        error_console.print(f"[bold red]Error writing to new envars file:[/] {e}")
+        raise typer.Exit(code=1) from e
+
+
 @app.command(name="validate")
 def validate_command(
     ctx: typer.Context,
