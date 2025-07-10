@@ -1,6 +1,6 @@
 import yaml
 
-from src.envars.models import (
+from .models import (
     Environment,
     Location,
     Variable,
