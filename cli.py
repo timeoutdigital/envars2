@@ -8,7 +8,9 @@ from rich.console import Console
 from rich.tree import Tree
 
 from src.envars.aws_kms import AWSKMSAgent
+from src.envars.aws_ssm import SSMParameterStore
 from src.envars.gcp_kms import GCPKMSAgent
+from src.envars.gcp_secret_manager import GCPSecretManager
 from src.envars.main import Secret, load_from_yaml, write_envars_yml
 from src.envars.models import Environment as EnvarsEnvironment
 from src.envars.models import Location, Variable, VariableManager, VariableValue
@@ -358,6 +360,26 @@ def _get_resolved_variables(
             if isinstance(value, str):
                 template = jinja_env.from_string(value)
                 resolved_vars[var_name] = template.render(env=os.environ, **resolved_vars)
+
+    # Parameter Store substitution
+    ssm_store = SSMParameterStore()
+    gcp_secret_manager = GCPSecretManager()
+    for var_name, value in resolved_vars.items():
+        if isinstance(value, str):
+            if value.startswith("parameter_store:"):
+                param_name = value.split(":", 1)[1]
+                param_value = ssm_store.get_parameter(param_name)
+                if param_value is None:
+                    error_console.print(f"[bold red]Error:[/] Parameter '{param_name}' not found in Parameter Store.")
+                    raise typer.Exit(code=1)
+                resolved_vars[var_name] = param_value
+            elif value.startswith("gcp_secret_manager:"):
+                secret_name = value.split(":", 1)[1]
+                secret_value = gcp_secret_manager.access_secret_version(secret_name)
+                if secret_value is None:
+                    error_console.print(f"[bold red]Error:[/] Secret '{secret_name}' not found in GCP Secret Manager.")
+                    raise typer.Exit(code=1)
+                resolved_vars[var_name] = secret_value
 
     return resolved_vars
 

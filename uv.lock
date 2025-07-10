@@ -160,6 +160,7 @@ source = { editable = "." }
 dependencies = [
     { name = "boto3" },
     { name = "google-cloud-kms" },
+    { name = "google-cloud-secret-manager" },
     { name = "jinja2" },
     { name = "pyyaml" },
     { name = "rich" },
@@ -178,6 +179,7 @@ dev = [
 requires-dist = [
     { name = "boto3" },
     { name = "google-cloud-kms" },
+    { name = "google-cloud-secret-manager" },
     { name = "jinja2" },
     { name = "pyyaml" },
     { name = "rich" },
@@ -263,6 +265,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ec/d4/2e8d1c39be35152b8b15ad8f3e841d048f77fa17ae777f8014ed3eed4b15/google_cloud_kms-3.5.1.tar.gz", hash = "sha256:b5f1ac87f8dc9a6642439e93baa5a63ee2d4d18c140669941689e9ab5abed1d9", size = 327236, upload-time = "2025-05-20T18:46:22.705Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/78/86/480d298145d15caf994cd13ee0fac764a3d29d07367550e604f31369d81f/google_cloud_kms-3.5.1-py3-none-any.whl", hash = "sha256:11dc9a1b4edcc6794c5fee7e4e7dbd14b051bde99f4702bd70fec193d152abdc", size = 270815, upload-time = "2025-05-20T18:46:21.116Z" },
+]
+
+[[package]]
+name = "google-cloud-secret-manager"
+version = "2.24.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/58/7a/2fa6735ec693d822fe08a76709c4d95d9b5b4c02e83e720497355039d2ee/google_cloud_secret_manager-2.24.0.tar.gz", hash = "sha256:ce573d40ffc2fb7d01719243a94ee17aa243ea642a6ae6c337501e58fbf642b5", size = 269516, upload-time = "2025-06-05T22:22:22.965Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/af/db1217cae1809e69a4527ee6293b82a9af2a1fb2313ad110c775e8f3c820/google_cloud_secret_manager-2.24.0-py3-none-any.whl", hash = "sha256:9bea1254827ecc14874bc86c63b899489f8f50bfe1442bfb2517530b30b3a89b", size = 218050, upload-time = "2025-06-10T02:02:19.88Z" },
 ]
 
 [[package]]

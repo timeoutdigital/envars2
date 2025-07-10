@@ -542,8 +542,10 @@ envars:
     assert output_dict == expected_dict
 
 
+@patch("cli.GCPSecretManager")
 @patch("subprocess.run")
-def test_set_systemd_env_command(mock_run, tmp_path):
+def test_set_systemd_env_command(mock_run, mock_gcp_secret_manager, tmp_path):
+    mock_run.return_value.stdout = ""
     initial_content = """
 configuration:
   environments:
@@ -829,6 +831,54 @@ environment_variables:
     assert output_dict["envars"]["HOSTNAME"] == "my-app.example.com"
     assert output_dict["envars"]["DATABASE_URL"] == "postgres://user:pass@my-app.example.com:5432/db"
     assert output_dict["envars"]["PORT"] == "5432"
+
+
+@patch("cli.SSMParameterStore")
+def test_variable_from_parameter_store(mock_ssm_store, tmp_path):
+    mock_ssm_instance = mock_ssm_store.return_value
+    mock_ssm_instance.get_parameter.return_value = "ssm_value"
+
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "parameter_store:/my/parameter"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+    assert output_dict["envars"]["MY_VAR"] == "ssm_value"
+    mock_ssm_instance.get_parameter.assert_called_once_with("/my/parameter")
+
+
+@patch("cli.GCPSecretManager")
+def test_variable_from_gcp_secret_manager(mock_gcp_secret_manager, tmp_path):
+    mock_gcp_instance = mock_gcp_secret_manager.return_value
+    mock_gcp_instance.access_secret_version.return_value = "gcp_secret_value"
+
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+    assert output_dict["envars"]["MY_VAR"] == "gcp_secret_value"
+    mock_gcp_instance.access_secret_version.assert_called_once_with(
+        "projects/my-project/secrets/my-secret/versions/latest"
+    )
 
 
 def test_load_from_yaml_invalid_structure(tmp_path):

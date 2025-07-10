@@ -8,6 +8,7 @@ authors = [
 dependencies = [
     "boto3",
     "google-cloud-kms",
+    "google-cloud-secret-manager",
     "pyyaml",
     "rich",
     "typer",

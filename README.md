@@ -114,6 +114,30 @@ environment_variables:
     default: "{{ env.get('PORT', 5000) }}"
 ```
 
+### Referencing AWS Parameter Store
+
+You can also reference secrets stored in AWS Systems Manager Parameter Store. This is useful when you have a variable that is shared between multiple applications.
+
+To do this, use the `parameter_store:` prefix followed by the name of the parameter.
+
+```yaml
+environment_variables:
+  SHARED_SECRET:
+    default: "parameter_store:/shared/secret"
+```
+
+### Referencing GCP Secret Manager
+
+Similarly, you can reference secrets stored in Google Cloud Secret Manager.
+
+To do this, use the `gcp_secret_manager:` prefix followed by the full resource name of the secret version.
+
+```yaml
+environment_variables:
+  GCP_SECRET:
+    default: "gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest"
+```
+
 ## Usage
 
 ### `init`
