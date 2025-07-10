@@ -20,6 +20,14 @@ Envars2 is a powerful command-line tool for managing environment variables acros
 - **Strict Validation**: Enforces uppercase variable names and correct structure.
 - **Safety Features**: Warns you when you might be adding a sensitive variable without encryption and requires you to be explicit.
 
+## Philosophy: Configuration as Code
+
+By storing the environment configuration for all environments in the application's repository, `envars2` allows you to treat your configuration as code. This has several benefits:
+
+- **Visibility:** Changes to the environment that are required for a code change can be included in the same commit. This improves visibility and makes it easier to understand the history of your application's configuration.
+- **Consistency:** All environments are defined in the same file, which helps to ensure consistency and reduce the risk of configuration drift between environments.
+- **Automation:** The `envars.yml` file can be used to automate the deployment of your application, ensuring that the correct environment variables are always set for each environment.
+
 ## Installation
 
 To install Envars2, you can use pip:
@@ -76,6 +84,34 @@ environment_variables:
     description: "Enable debug mode."
     default: "false"
     dev: "true"
+```
+
+### Templating with Jinja2
+
+Envars2 uses the Jinja2 templating engine, which allows you to create dynamic and reusable variable definitions. You can reference other variables and even shell environment variables in your `envars.yml` file.
+
+**Referencing Other Variables:**
+
+You can reference other variables using the `{{ VARIABLE_NAME }}` syntax.
+
+```yaml
+environment_variables:
+  DOMAIN:
+    default: "example.com"
+  HOSTNAME:
+    default: "my-app.{{ DOMAIN }}"
+```
+
+**Referencing Shell Environment Variables:**
+
+You can access shell environment variables using the `env` object. It's recommended to use the `.get()` method to provide a default value in case the shell variable is not set.
+
+```yaml
+environment_variables:
+  SENTRY_DSN:
+    default: "https://{{ env.get('SENTRY_KEY') }}@sentry.io/12345"
+  PORT:
+    default: "{{ env.get('PORT', 5000) }}"
 ```
 
 ## Usage
