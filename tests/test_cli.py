@@ -1007,7 +1007,7 @@ environment_variables:
     assert "Circular dependency detected" in result.stderr
 
 
-@patch("src.envars.cloud_utils.get_aws_account_id", return_value="123456789012")
+@patch("envars.cloud_utils.get_aws_account_id", return_value="123456789012")
 def test_default_location_aws(mock_get_aws_account_id, tmp_path):
     initial_content = """
 configuration:
