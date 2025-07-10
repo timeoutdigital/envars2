@@ -1017,3 +1017,79 @@ environment_variables:
     result = runner.invoke(app, ["--file", file_path, "validate"])
     assert result.exit_code == 1
     assert "Circular dependency detected" in result.stderr
+
+
+@patch("src.envars.cloud_utils.get_aws_account_id", return_value="123456789012")
+def test_default_location_aws(mock_get_aws_account_id, tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+  environments:
+    - dev
+  locations:
+    - aws-prod: "123456789012"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+    assert result.exit_code == 0
+    assert "MY_VAR=default_value" in result.stdout
+
+
+@patch("cli.get_default_location_name", return_value="gcp-prod")
+def test_default_location_gcp(mock_get_default_location_name, tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "projects/my-gcp-project/locations/us-central1/keyRings/my-key-ring/cryptoKeys/my-key"
+  environments:
+    - dev
+  locations:
+    - gcp-prod: "my-gcp-project"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+    assert result.exit_code == 0
+    assert "MY_VAR=default_value" in result.stdout
+
+
+def test_default_location_not_found(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+  environments:
+    - dev
+  locations:
+    - aws-prod: "another-account"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+    assert result.exit_code == 1
+    assert "Could not determine default location" in result.stderr
+
+
+@patch("boto3.client")
+def test_debug_output(mock_boto_client, tmp_path):
+    mock_sts_client = mock_boto_client.return_value
+    mock_sts_client.get_caller_identity.return_value = {"Account": "123456789012"}
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+  environments:
+    - dev
+  locations:
+    - aws-prod: "123456789012"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    with patch.dict("os.environ", {"ENVARS_DEBUG": "1"}):
+        result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+    assert result.exit_code == 0
+    assert "DEBUG: Attempting to detect default location..." in result.stderr
+    assert "DEBUG: Cloud provider is AWS." in result.stderr
+    assert "DEBUG: Found AWS Account ID: 123456789012" in result.stderr
+    assert "DEBUG: Checking location: aws-prod with ID: 123456789012" in result.stderr
+    assert "DEBUG: Default location found: aws-prod" in result.stderr

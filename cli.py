@@ -12,6 +12,7 @@ from rich.tree import Tree
 
 from src.envars.aws_kms import AWSKMSAgent
 from src.envars.aws_ssm import SSMParameterStore
+from src.envars.cloud_utils import get_default_location_name
 from src.envars.gcp_kms import GCPKMSAgent
 from src.envars.gcp_secret_manager import GCPSecretManager
 from src.envars.main import Secret, load_from_yaml, write_envars_yml
@@ -295,11 +296,17 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
 def print_envars(
     ctx: typer.Context,
     env: str = typer.Option(..., "--env", "-e", help="Filter by environment."),
-    loc: str = typer.Option(..., "--loc", "-l", help="Filter by location."),
+    loc: str | None = typer.Option(None, "--loc", "-l", help="Filter by location."),
     decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
 ):
     """Prints the resolved variables for a given context."""
     manager = ctx.obj
+    if loc is None:
+        loc = get_default_location_name(manager)
+        if loc is None:
+            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
+            raise typer.Exit(code=1)
+
     resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
     for k, v in resolved_vars.items():
         console.print(f"{k}={v}")
@@ -462,7 +469,7 @@ def _get_resolved_variables(
 @app.command(name="exec", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def exec_command(
     ctx: typer.Context,
-    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    loc: str | None = typer.Option(None, "--loc", "-l", help="Location for context."),
     env: str | None = typer.Option(
         None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
     ),
@@ -479,6 +486,11 @@ def exec_command(
       envars2 exec --env dev --loc aws -- my_script.py --some-arg
     """
     manager = ctx.obj
+    if loc is None:
+        loc = get_default_location_name(manager)
+        if loc is None:
+            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
+            raise typer.Exit(code=1)
     resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
 
     new_env = os.environ.copy()
@@ -503,13 +515,18 @@ def exec_command(
 @app.command(name="yaml")
 def yaml_command(
     ctx: typer.Context,
-    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    loc: str | None = typer.Option(None, "--loc", "-l", help="Location for context."),
     env: str | None = typer.Option(
         None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
     ),
 ):
     """Prints the environment variables as YAML."""
     manager = ctx.obj
+    if loc is None:
+        loc = get_default_location_name(manager)
+        if loc is None:
+            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
+            raise typer.Exit(code=1)
     resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
     console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
 
@@ -517,7 +534,7 @@ def yaml_command(
 @app.command(name="set-systemd-env")
 def set_systemd_env(
     ctx: typer.Context,
-    loc: str = typer.Option(..., "--loc", "-l", help="Location for context."),
+    loc: str | None = typer.Option(None, "--loc", "-l", help="Location for context."),
     env: str | None = typer.Option(
         None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
     ),
@@ -525,6 +542,11 @@ def set_systemd_env(
 ):
     """Sets the environment variables for a systemd user service."""
     manager = ctx.obj
+    if loc is None:
+        loc = get_default_location_name(manager)
+        if loc is None:
+            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
+            raise typer.Exit(code=1)
     resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
 
     if not resolved_vars:
