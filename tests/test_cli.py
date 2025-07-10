@@ -410,37 +410,6 @@ environment_variables:
     assert call_args[2]["MY_VAR"] == "dev_loc_value"
 
 
-def test_print_no_options(tmp_path):
-    initial_content = """
-configuration:
-  environments:
-    - dev
-    - prod
-  locations:
-    - aws: "123"
-    - gcp: "456"
-environment_variables:
-  VAR1:
-    default: "default1"
-    dev: "dev1"
-    prod: "prod1"
-  VAR2:
-    default: "default2"
-    aws: "aws2"
-    gcp:
-      dev: "gcp_dev2"
-"""
-    file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print"])
-    assert result.exit_code == 0
-    assert "default1" in result.stdout
-    assert "dev1" in result.stdout
-    assert "prod1" in result.stdout
-    assert "default2" in result.stdout
-    assert "aws2" in result.stdout
-    assert "gcp_dev2" in result.stdout
-
-
 def test_print_with_env_and_loc(tmp_path):
     initial_content = """
 configuration:
@@ -458,7 +427,26 @@ environment_variables:
     result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout
-    assert "Envars Configuration" not in result.stdout
+
+
+def test_tree_command(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "tree"])
+    assert result.exit_code == 0
+    assert "Envars Configuration" in result.stdout
+    assert "MY_VAR" in result.stdout
 
 
 def test_print_invalid_env(tmp_path):
@@ -466,9 +454,11 @@ def test_print_invalid_env(tmp_path):
 configuration:
   environments:
     - dev
+  locations:
+    - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "prod"])
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "prod", "--loc", "my_loc"])
     assert result.exit_code == 1
     assert "Environment 'prod' not found" in result.stderr
 
@@ -476,11 +466,13 @@ configuration:
 def test_print_invalid_loc(tmp_path):
     initial_content = """
 configuration:
+  environments:
+    - dev
   locations:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--loc", "other_loc"])
+    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev", "--loc", "other_loc"])
     assert result.exit_code == 1
     assert "Location 'other_loc' not found" in result.stderr
 
@@ -809,6 +801,34 @@ environment_variables:
     result = runner.invoke(app, ["--file", file_path, "validate", "--ignore-default-secrets"])
     assert result.exit_code == 0
     assert "Validation successful!" in result.stdout
+
+
+def test_variable_templating_with_jinja(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  DOMAIN:
+    default: "example.com"
+  HOSTNAME:
+    default: "my-app.{{ DOMAIN }}"
+  DATABASE_URL:
+    default: "postgres://user:pass@{{ HOSTNAME }}:5432/db"
+  DEFAULT_PORT:
+    default: "5432"
+  PORT:
+    default: "{{ env.get('PORT', DEFAULT_PORT) }}"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+    assert output_dict["envars"]["HOSTNAME"] == "my-app.example.com"
+    assert output_dict["envars"]["DATABASE_URL"] == "postgres://user:pass@my-app.example.com:5432/db"
+    assert output_dict["envars"]["PORT"] == "5432"
 
 
 def test_load_from_yaml_invalid_structure(tmp_path):

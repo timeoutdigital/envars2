@@ -3,13 +3,15 @@ import subprocess
 
 import typer
 import yaml
+from jinja2 import Environment
 from rich.console import Console
 from rich.tree import Tree
 
 from src.envars.aws_kms import AWSKMSAgent
 from src.envars.gcp_kms import GCPKMSAgent
 from src.envars.main import Secret, load_from_yaml, write_envars_yml
-from src.envars.models import Environment, Location, Variable, VariableManager, VariableValue
+from src.envars.models import Environment as EnvarsEnvironment
+from src.envars.models import Location, Variable, VariableManager, VariableValue
 
 app = typer.Typer()
 console = Console()
@@ -40,7 +42,7 @@ def init_envars(
 
     environments = [e.strip() for e in env.split(",")]
     for env_name in environments:
-        manager.add_environment(Environment(name=env_name))
+        manager.add_environment(EnvarsEnvironment(name=env_name))
 
     locations = [l.strip() for l in loc.split(",")]
     for loc_item in locations:
@@ -261,35 +263,24 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
 @app.command(name="print")
 def print_envars(
     ctx: typer.Context,
-    env: str = typer.Option(None, "--env", "-e", help="Filter by environment."),
-    loc: str = typer.Option(None, "--loc", "-l", help="Filter by location."),
+    env: str = typer.Option(..., "--env", "-e", help="Filter by environment."),
+    loc: str = typer.Option(..., "--loc", "-l", help="Filter by location."),
     decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
 ):
-    """Prints the contents of the envars.yml file in a human-readable format."""
+    """Prints the resolved variables for a given context."""
     manager = ctx.obj
+    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+    for k, v in resolved_vars.items():
+        console.print(f"{k}={v}")
 
-    if env and env not in manager.environments:
-        error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
-        raise typer.Exit(code=1)
 
-    if loc and not any(l.name == loc for l in manager.locations.values()):
-        error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
-        raise typer.Exit(code=1)
-
-    # VAR=value format when both env and loc are specified
-    if env and loc:
-        for var_name in manager.variables:
-            variable_value_obj = manager.get_variable(var_name, env, loc)
-            if variable_value_obj:
-                value = (
-                    _get_decrypted_value(manager, variable_value_obj)
-                    if decrypt and isinstance(variable_value_obj.value, Secret)
-                    else variable_value_obj.value
-                )
-                console.print(f"{var_name}={value}")
-        return
-
-    # Tree view for other cases
+@app.command(name="tree")
+def tree_command(
+    ctx: typer.Context,
+    decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
+):
+    """Prints the contents of the envars.yml file in a tree view."""
+    manager = ctx.obj
     tree = Tree("[bold green]Envars Configuration[/]")
     if manager.app:
         tree.add(f"[bold blue]App:[/] {manager.app}")
@@ -359,6 +350,15 @@ def _get_resolved_variables(
             if value == "[DECRYPTION FAILED]":
                 raise typer.Exit(code=1)
             resolved_vars[var_name] = value
+
+    # Template substitution with Jinja2
+    jinja_env = Environment()
+    for i in range(len(resolved_vars)):  # Loop to handle nested templates
+        for var_name, value in resolved_vars.items():
+            if isinstance(value, str):
+                template = jinja_env.from_string(value)
+                resolved_vars[var_name] = template.render(env=os.environ, **resolved_vars)
+
     return resolved_vars
 
 
@@ -470,7 +470,7 @@ def config_command(
     if kms_key:
         manager.kms_key = kms_key
     if add_env:
-        manager.add_environment(Environment(name=add_env))
+        manager.add_environment(EnvarsEnvironment(name=add_env))
     if remove_env:
         if remove_env in manager.environments:
             del manager.environments[remove_env]
