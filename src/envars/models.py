@@ -173,6 +173,7 @@ class VariableManager:
         self.variable_values: list[VariableValue] = []
         self.kms_key = kms_key
         self.description_mandatory = description_mandatory
+        self.cloud_provider: str | None = None
 
     def add_variable(self, variable: Variable):
         """Adds a Variable to the manager."""

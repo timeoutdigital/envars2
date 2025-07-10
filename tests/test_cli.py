@@ -881,6 +881,34 @@ environment_variables:
     )
 
 
+def test_add_mismatched_remote_variable(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(
+        app,
+        ["--file", file_path, "add", "MY_VAR=gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest"],
+    )
+    assert result.exit_code == 1
+    assert "Cannot use 'gcp_secret_manager:' with an AWS KMS key." in result.stderr
+
+
+def test_validate_mismatched_remote_variable(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+environment_variables:
+  MY_VAR:
+    default: "gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 1
+    assert "Variable 'MY_VAR' uses 'gcp_secret_manager:' with an AWS KMS key." in result.stderr
+
+
 def test_load_from_yaml_invalid_structure(tmp_path):
     initial_content = """
 configuration:

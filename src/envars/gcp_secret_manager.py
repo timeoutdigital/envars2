@@ -1,4 +1,8 @@
+import warnings
+
 from google.cloud import secretmanager
+
+warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
 
 class GCPSecretManager:

@@ -63,6 +63,16 @@ def init_envars(
         raise typer.Exit(code=1) from e
 
 
+def _get_cloud_provider(manager: VariableManager) -> str | None:
+    """Detects the cloud provider based on the KMS key."""
+    if manager.kms_key:
+        if manager.kms_key.startswith("arn:aws:kms:"):
+            return "aws"
+        if manager.kms_key.startswith("projects/"):
+            return "gcp"
+    return None
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context, file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file.")
@@ -77,6 +87,7 @@ def main(
 
     try:
         manager = load_from_yaml(file_path)
+        manager.cloud_provider = _get_cloud_provider(manager)
         ctx.obj = manager
     except FileNotFoundError as e:
         error_console.print(f"[bold red]Error:[/] {file_path} not found. Use 'init' to create a new file.")
@@ -119,6 +130,15 @@ def add_env_var(
             "Use --secret to encrypt or --no-secret to store as plaintext."
         )
         raise typer.Exit(code=1)
+
+    # Validate remote variable prefix
+    if manager.cloud_provider:
+        if manager.cloud_provider == "aws" and var_value.startswith("gcp_secret_manager:"):
+            error_console.print("[bold red]Error:[/] Cannot use 'gcp_secret_manager:' with an AWS KMS key.")
+            raise typer.Exit(code=1)
+        if manager.cloud_provider == "gcp" and var_value.startswith("parameter_store:"):
+            error_console.print("[bold red]Error:[/] Cannot use 'parameter_store:' with a GCP KMS key.")
+            raise typer.Exit(code=1)
 
     # Ensure variable exists
     if var_name not in manager.variables:
@@ -551,6 +571,15 @@ def validate_command(
         for vv in manager.variable_values:
             if isinstance(vv.value, Secret) and vv.scope_type == "DEFAULT":
                 errors.append(f"Variable '{vv.variable_name}' is a secret and cannot have a default value.")
+
+    # Check for mismatched remote variables
+    if manager.cloud_provider:
+        for vv in manager.variable_values:
+            if isinstance(vv.value, str):
+                if manager.cloud_provider == "aws" and vv.value.startswith("gcp_secret_manager:"):
+                    errors.append(f"Variable '{vv.variable_name}' uses 'gcp_secret_manager:' with an AWS KMS key.")
+                if manager.cloud_provider == "gcp" and vv.value.startswith("parameter_store:"):
+                    errors.append(f"Variable '{vv.variable_name}' uses 'parameter_store:' with a GCP KMS key.")
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")
