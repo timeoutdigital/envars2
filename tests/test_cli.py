@@ -3,7 +3,7 @@ from unittest.mock import patch
 import yaml
 from typer.testing import CliRunner
 
-from cli import app
+from envars.cli import app
 
 runner = CliRunner()
 
@@ -126,7 +126,7 @@ configuration:
     assert data["environment_variables"]["MY_VAR"]["dev"]["my_loc"] == "specific_value"
 
 
-@patch("cli.AWSKMSAgent")
+@patch("envars.cli.AWSKMSAgent")
 def test_add_secret_variable(mock_aws_kms_agent, tmp_path):
     mock_agent_instance = mock_aws_kms_agent.return_value
     mock_agent_instance.encrypt.return_value = "encrypted_value"
@@ -220,7 +220,7 @@ configuration:
     assert data["environment_variables"]["MY_VAR"]["non_existent_env"]["my_loc"] == "value"
 
 
-@patch("cli.AWSKMSAgent")
+@patch("envars.cli.AWSKMSAgent")
 def test_print_decrypt_secret(mock_aws_kms_agent, tmp_path):
     mock_agent_instance = mock_aws_kms_agent.return_value
     mock_agent_instance.decrypt.return_value = "decrypted_value"
@@ -493,7 +493,7 @@ configuration:
     assert "Location 'other_loc' not found" in result.stderr
 
 
-@patch("cli.AWSKMSAgent")
+@patch("envars.cli.AWSKMSAgent")
 def test_yaml_command(mock_aws_kms_agent, tmp_path):
     mock_agent_instance = mock_aws_kms_agent.return_value
     mock_agent_instance.decrypt.return_value = "decrypted_value"
@@ -530,7 +530,7 @@ envars:
     assert output_dict == expected_dict
 
 
-@patch("cli.GCPSecretManager")
+@patch("envars.cli.GCPSecretManager")
 @patch("subprocess.run")
 def test_set_systemd_env_command(mock_run, mock_gcp_secret_manager, tmp_path):
     mock_run.return_value.stdout = ""
@@ -616,7 +616,7 @@ environment_variables:
     manager = VariableManager()
     manager.add_variable_value(VariableValue(variable_name="UNDEFINED_VAR", value="some_value", scope_type="DEFAULT"))
 
-    with patch("cli.load_from_yaml", return_value=manager):
+    with patch("envars.cli.load_from_yaml", return_value=manager):
         result = runner.invoke(app, ["--file", str(file_path), "validate"])
 
     assert result.exit_code == 1
@@ -821,8 +821,8 @@ environment_variables:
     assert output_dict["envars"]["PORT"] == "5432"
 
 
-@patch("cli.GCPSecretManager")
-@patch("cli.SSMParameterStore")
+@patch("envars.cli.GCPSecretManager")
+@patch("envars.cli.SSMParameterStore")
 def test_variable_from_parameter_store(mock_ssm_store, mock_gcp_secret_manager, tmp_path):
     mock_ssm_instance = mock_ssm_store.return_value
     mock_ssm_instance.get_parameter.return_value = "ssm_value"
@@ -845,7 +845,7 @@ environment_variables:
     mock_ssm_instance.get_parameter.assert_called_once_with("/my/parameter")
 
 
-@patch("cli.GCPSecretManager")
+@patch("envars.cli.GCPSecretManager")
 def test_variable_from_gcp_secret_manager(mock_gcp_secret_manager, tmp_path):
     mock_gcp_instance = mock_gcp_secret_manager.return_value
     mock_gcp_instance.access_secret_version.return_value = "gcp_secret_value"
@@ -918,8 +918,8 @@ environment_variables:
     assert "Invalid nesting in 'PROD_ONLY_VAR' -> 'prod' -> 'master'" in result.stderr.replace("\n", "")
 
 
-@patch("cli.GCPSecretManager")
-@patch("cli.SSMParameterStore")
+@patch("envars.cli.GCPSecretManager")
+@patch("envars.cli.SSMParameterStore")
 def test_remote_variable_templating(mock_ssm_store, mock_gcp_secret_manager, tmp_path):
     mock_ssm_instance = mock_ssm_store.return_value
     mock_ssm_instance.get_parameter.return_value = "ssm_value"
@@ -1026,7 +1026,7 @@ environment_variables:
     assert "MY_VAR=default_value" in result.stdout
 
 
-@patch("cli.get_default_location_name", return_value="gcp-prod")
+@patch("envars.cli.get_default_location_name", return_value="gcp-prod")
 def test_default_location_gcp(mock_get_default_location_name, tmp_path):
     initial_content = """
 configuration:
