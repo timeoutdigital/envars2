@@ -100,6 +100,26 @@ sequenceDiagram
     CLI->>CLI: Execute my_script.py
 ```
 
+```
+
+### `exec` Command
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant CoreLogic
+    participant CloudServices
+
+    User->>CLI: envars2 exec --env dev --loc aws -- my_script.py
+    CLI->>CoreLogic: _get_resolved_variables()
+    CoreLogic->>CloudServices: Fetch secrets (if any)
+    CloudServices-->>CoreLogic: Return secret values
+    CoreLogic-->>CLI: Return resolved variables
+    CLI->>CLI: Populate environment
+    CLI->>CLI: Execute my_script.py
+```
+
 ## Onboarding Guide
 
 This guide will help new developers get up and running with the `envars2` project.
