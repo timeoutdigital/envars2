@@ -107,7 +107,9 @@ def main(
 @app.command(name="add")
 def add_env_var(
     ctx: typer.Context,
-    var_assignment: str = typer.Argument(..., help="Variable assignment in VAR=value format."),
+    var_assignment: str = typer.Argument(None, help="Variable assignment in VAR=value format."),
+    var_name: str = typer.Option(None, "--var-name", "-n", help="Variable name."),
+    value_from_file: str = typer.Option(None, "--value-from-file", help="Read value from a file."),
     env: str = typer.Option(None, "--env", "-e", help="Environment name."),
     loc: str = typer.Option(None, "--loc", "-l", help="Location name."),
     secret: bool = typer.Option(False, "--secret", "-s", help="Encrypt the variable value."),
@@ -119,11 +121,34 @@ def add_env_var(
     assert ctx.parent is not None
     file_path = ctx.parent.params["file_path"]
 
-    try:
-        var_name, var_value = var_assignment.split("=", 1)
-    except ValueError as e:
-        error_console.print("[bold red]Error:[/bold red] Invalid variable assignment format. Use VAR=value.")
-        raise typer.Exit(code=1) from e
+    if var_assignment and (var_name or value_from_file):
+        error_console.print("[bold red]Error:[/] Cannot use VAR=value argument with --var-name or --value-from-file.")
+        raise typer.Exit(code=1)
+
+    if not var_assignment and not (var_name and value_from_file):
+        error_console.print(
+            "[bold red]Error:[/] Either VAR=value argument or both --var-name and --value-from-file are required."
+        )
+        raise typer.Exit(code=1)
+
+    if var_assignment:
+        try:
+            name, var_value = var_assignment.split("=", 1)
+        except ValueError as e:
+            error_console.print("[bold red]Error:[/bold red] Invalid variable assignment format. Use VAR=value.")
+            raise typer.Exit(code=1) from e
+        var_name = name
+    elif var_name and value_from_file:
+        try:
+            with open(value_from_file) as f:
+                var_value = f.read()
+        except FileNotFoundError as e:
+            error_console.print(f"[bold red]Error:[/] File not found: {value_from_file}")
+            raise typer.Exit(code=1) from e
+    else:
+        # This case should be caught by the initial checks, but as a safeguard:
+        error_console.print("[bold red]Error:[/] Invalid combination of arguments.")
+        raise typer.Exit(code=1)
 
     if var_name.upper() != var_name:
         error_console.print("[bold red]Error:[/] Variable names must be uppercase.")
