@@ -15,7 +15,7 @@ Stop juggling `.env` files and start treating your configuration like code.
 - **Templating with Jinja2**: Resolve variable values dynamically using the power of Jinja2 templating.
 - **Value Validation**: Ensure the integrity of your configuration with optional regex-based validation for variable values.
 - **Cloud Secret Manager Integration**: Fetch secrets on-the-fly from [AWS SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html) or [GCP Secret Manager](https://cloud.google.com/secret-manager).
-- **Powerful CLI**: A rich set of commands for initializing, adding, printing, validating, and executing your configuration.
+- **Powerful CLI**: A rich set of commands for initializing, adding, outputting, validating, and executing your configuration.
 
 ## Installation
 
@@ -62,12 +62,12 @@ envars add EMAIL="test@example.com" --description "A user's email" --validation 
 envars add MY_SECRET="super-secret" --secret --env prod --loc aws
 ```
 
-### `print`
+### `output`
 
-Prints the resolved variables for a given context.
+Outputs the resolved variables for a given context in desired format
 
 ```bash
-envars print --env dev --loc aws
+envars output --env dev --loc aws --format json
 ```
 
 ### `exec`

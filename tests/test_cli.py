@@ -259,7 +259,7 @@ environment_variables:
                 [
                     "--file",
                     file_path,
-                    "print",
+                    "output",
                     "--env",
                     "dev",
                     "--loc",
@@ -412,13 +412,13 @@ environment_variables:
       my_loc: "dev_loc_value"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout
 
     # Test with STAGE environment variable
     with patch.dict("os.environ", {"STAGE": "dev"}):
-        result = runner.invoke(app, ["--file", file_path, "print", "--loc", "my_loc"])
+        result = runner.invoke(app, ["--file", file_path, "output", "--loc", "my_loc"])
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout
 
@@ -452,7 +452,7 @@ configuration:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "prod", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "prod", "--loc", "my_loc"])
     assert result.exit_code == 1
     assert "Environment 'prod' not found" in result.stderr
 
@@ -466,7 +466,7 @@ configuration:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev", "--loc", "other_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev", "--loc", "other_loc"])
     assert result.exit_code == 1
     assert "Location 'other_loc' not found" in result.stderr
 
@@ -499,7 +499,7 @@ configuration:
     assert "Location 'other_loc' not found" in result.stderr
 
 
-def test_yaml_command(tmp_path):
+def test_output_yaml_command(tmp_path):
     encrypted_string = base64.b64encode(b"some_encrypted_bytes").decode("utf-8")
     initial_content = f"""
 configuration:
@@ -531,7 +531,9 @@ environment_variables:
             },
         )
         with patch("boto3.client", return_value=kms_client):
-            result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+            result = runner.invoke(
+                app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"]
+            )
             assert result.exit_code == 0
             expected_yaml = """
 envars:
@@ -542,6 +544,28 @@ envars:
             expected_dict = yaml.safe_load(expected_yaml)
             assert output_dict == expected_dict
             stubber.assert_no_pending_responses()
+
+
+def test_output_json_command(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+    dev:
+      my_loc: "dev_loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "json", "--env", "dev", "--loc", "my_loc"])
+    assert result.exit_code == 0
+    import json
+
+    output_dict = json.loads(result.stdout)
+    assert output_dict == {"envars": {"MY_VAR": "dev_loc_value"}}
 
 
 @patch("google.auth.default", return_value=(None, None))
@@ -654,7 +678,7 @@ environment_variables:
     default: "my_value"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print"])
+    result = runner.invoke(app, ["--file", file_path, "output"])
     assert result.exit_code == 1
     assert "Variable name 'my_var' must be uppercase." in result.stderr
 
@@ -816,7 +840,7 @@ environment_variables:
     default: "{{ env.get('PORT', DEFAULT_PORT) }}"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 0
     output_dict = yaml.safe_load(result.stdout)
     assert output_dict["envars"]["HOSTNAME"] == "my-app.example.com"
@@ -841,7 +865,7 @@ environment_variables:
     default: "parameter_store:/my/parameter"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 0
     output_dict = yaml.safe_load(result.stdout)
     assert output_dict["envars"]["MY_VAR"] == "ssm_value"
@@ -864,7 +888,7 @@ environment_variables:
     default: "gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 0
     output_dict = yaml.safe_load(result.stdout)
     assert output_dict["envars"]["MY_VAR"] == "gcp_secret_value"
@@ -921,7 +945,7 @@ environment_variables:
         staging: abc
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print"])
+    result = runner.invoke(app, ["--file", file_path, "output"])
     assert result.exit_code == 1
     assert "Invalid nesting in 'PROD_ONLY_VAR' -> 'prod' -> 'master'" in result.stderr.replace("\n", "")
 
@@ -953,7 +977,7 @@ environment_variables:
     default: "gcp_secret_manager:projects/{{ GCP_PROJECT }}/secrets/{{ SECRET_NAME }}/versions/latest"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"])
 
     assert result.exit_code == 0
     output_dict = yaml.safe_load(result.stdout)
@@ -987,7 +1011,7 @@ environment_variables:
     default: "I am not in a cycle"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"])
     assert result.exit_code == 1
     assert "Circular dependency detected" in result.stderr
     assert "VAR_A" in result.stderr
@@ -1032,7 +1056,7 @@ environment_variables:
     with Stubber(sts_client) as stubber:
         stubber.add_response("get_caller_identity", {"Account": "123456789012"})
         with patch("boto3.client", return_value=sts_client):
-            result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+            result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev"])
             assert result.exit_code == 0
             assert "MY_VAR=default_value" in result.stdout
             stubber.assert_no_pending_responses()
@@ -1052,7 +1076,7 @@ environment_variables:
     default: "default_value"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev"])
     assert result.exit_code == 0
     assert "MY_VAR=default_value" in result.stdout
 
@@ -1071,7 +1095,7 @@ configuration:
     with Stubber(sts_client) as stubber:
         stubber.add_response("get_caller_identity", {"Account": "123456789012"})
         with patch("boto3.client", return_value=sts_client):
-            result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+            result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev"])
             assert result.exit_code == 1
             assert "Could not determine default location" in result.stderr
             stubber.assert_no_pending_responses()
@@ -1091,7 +1115,7 @@ configuration:
 """
     file_path = create_envars_file(tmp_path, initial_content)
     with patch.dict("os.environ", {"ENVARS_DEBUG": "1"}):
-        result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+        result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev"])
     assert result.exit_code == 0
     assert "DEBUG: Attempting to detect default location..." in result.stderr
     assert "DEBUG: Cloud provider is AWS." in result.stderr

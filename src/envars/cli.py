@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import warnings
@@ -323,11 +324,12 @@ def add_env_var(
         raise typer.Exit(code=1) from e
 
 
-@app.command(name="print")
-def print_envars(
+@app.command(name="output")
+def output_command(
     ctx: typer.Context,
     env: str | None = typer.Option(None, "--env", "-e", help="Filter by environment."),
     loc: str | None = typer.Option(None, "--loc", "-l", help="Filter by location."),
+    format: str = typer.Option("dotenv", "--format", help="Output format (dotenv, yaml, json)."),
 ):
     """Prints the resolved variables for a given context."""
     manager = ctx.obj
@@ -339,8 +341,16 @@ def print_envars(
 
     try:
         resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
-        for k, v in resolved_vars.items():
-            console.print(f"{k}={v}")
+        if format == "dotenv":
+            for k, v in resolved_vars.items():
+                console.print(f"{k}={v}")
+        elif format == "yaml":
+            console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
+        elif format == "json":
+            console.print(json.dumps({"envars": resolved_vars}, indent=2))
+        else:
+            error_console.print(f"[bold red]Error:[/] Invalid output format: {format}")
+            raise typer.Exit(code=1)
     except ValueError as e:
         error_console.print(f"[bold red]Error:[/] {e}")
         raise typer.Exit(code=1) from e
@@ -450,29 +460,6 @@ def exec_command(
         raise typer.Exit(code=1) from e
     except Exception as e:
         error_console.print(f"[bold red]Error executing command:[/] {e}")
-        raise typer.Exit(code=1) from e
-
-
-@app.command(name="yaml")
-def yaml_command(
-    ctx: typer.Context,
-    loc: str | None = typer.Option(None, "--loc", "-l", help="Location for context."),
-    env: str | None = typer.Option(
-        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
-    ),
-):
-    """Prints the environment variables as YAML."""
-    manager = ctx.obj
-    if loc is None:
-        loc = get_default_location_name(manager)
-        if loc is None:
-            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
-            raise typer.Exit(code=1)
-    try:
-        resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
-        console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
-    except ValueError as e:
-        error_console.print(f"[bold red]Error:[/] {e}")
         raise typer.Exit(code=1) from e
 
 
