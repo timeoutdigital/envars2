@@ -1,7 +1,9 @@
 # Envars2: Environment Variable Management CLI
 
-[![PyPI version](https://badge.fury.io/py/envars.svg)](https://badge.fury.io/py/envars)
+[![PyPI version](https://badge.fury.io/py/envars2.svg)](https://badge.fury.io/py/envars2)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Application Config As Code**
 
 **Envars2** is a powerful command-line tool for managing environment variables across different applications, environments, and cloud providers.
 
