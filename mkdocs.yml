@@ -1,0 +1,53 @@
+site_name: Envars2
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Architecture: ARCHITECTURE.md
+  - Analysis: ANALYSIS.md
+  - Assessment: ASSESSMENT.md
+  - Key Rotation: KEY_ROTATION.md
+  - Running with Docker: RUNNING_WITH_DOCKER.md
+  - Security: SECURITY.md
+
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/your-username/envars2
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - md_in_html
