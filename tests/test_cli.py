@@ -1109,3 +1109,11 @@ configuration:
     assert "DEBUG: Found AWS Account ID: 123456789012" in result.stderr
     assert "DEBUG: Checking location: aws-prod with ID: 123456789012" in result.stderr
     assert "DEBUG: Default location found: aws-prod" in result.stderr
+
+
+def test_config_command_no_options_prints_help(tmp_path):
+    file_path = create_envars_file(tmp_path)
+    result = runner.invoke(app, ["--file", file_path, "config"])
+    assert result.exit_code == 0
+    assert "Usage: " in result.stdout
+    assert "config [OPTIONS]" in result.stdout

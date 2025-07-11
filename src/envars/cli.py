@@ -581,6 +581,13 @@ def config_command(
     ),
 ):
     """Updates the configuration in the envars.yml file."""
+    no_options_provided = all(
+        v is None for v in [kms_key, add_env, remove_env, add_loc, remove_loc, description_mandatory]
+    )
+    if no_options_provided:
+        console.print(ctx.get_help())
+        raise typer.Exit()
+
     manager = ctx.obj
     assert ctx.parent is not None
     file_path = ctx.parent.params["file_path"]
