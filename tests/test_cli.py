@@ -1205,3 +1205,51 @@ XAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXA
 
     data = read_yaml_file(file_path)
     assert data["environment_variables"]["MY_VAR"]["default"] == file_content
+
+
+class TestCircularDependency:
+    def test_add_circular_dependency(self, tmp_path):
+        initial_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  VAR_A:
+    default: "Value is {{ VAR_B }}"
+"""
+        file_path = create_envars_file(tmp_path, initial_content)
+        result = runner.invoke(app, ["--file", file_path, "add", "VAR_B=Value is {{ VAR_A }}"])
+        assert result.exit_code == 1
+        assert "Circular dependency detected" in result.stderr
+        assert "VAR_A" in result.stderr
+        assert "VAR_B" in result.stderr
+
+    def test_add_context_specific_circular_dependency(self, tmp_path):
+        initial_content = """
+configuration:
+  environments:
+    - dev
+    - prod
+  locations:
+    - loc1: "1"
+    - loc2: "2"
+environment_variables:
+  VAR_A:
+    default: "ok"
+    dev:
+      loc1: "{{ VAR_B }}"
+  VAR_B:
+    default: "ok"
+"""
+        file_path = create_envars_file(tmp_path, initial_content)
+
+        # This should be fine
+        result = runner.invoke(app, ["--file", file_path, "add", "VAR_B=ok for now", "--env", "prod"])
+        assert result.exit_code == 0
+
+        # This should create a circular dependency in the dev/loc1 context
+        result = runner.invoke(app, ["--file", file_path, "add", "VAR_B={{ VAR_A }}", "--env", "dev", "--loc", "loc1"])
+        assert result.exit_code == 1
+        assert "Circular dependency detected in context env='dev', loc='loc1'" in result.stderr

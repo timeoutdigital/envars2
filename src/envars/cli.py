@@ -80,6 +80,27 @@ def _get_cloud_provider(manager: VariableManager) -> str | None:
     return None
 
 
+def _check_all_contexts_for_circular_dependencies(manager: VariableManager):
+    """Checks all environment and location contexts for circular dependencies."""
+    for env_name in manager.environments:
+        for loc in manager.locations.values():
+            # Mimic the variable resolution for a specific context
+            resolved_vars = {}
+            for var_name in manager.variables:
+                variable_value_obj = manager.get_variable(var_name, env_name, loc.name)
+                if variable_value_obj:
+                    resolved_vars[var_name] = variable_value_obj.value
+
+            # Now check for circular dependencies on this specific context
+            try:
+                _check_for_circular_dependencies(resolved_vars)
+            except ValueError as e:
+                # Re-raise with more context
+                raise ValueError(
+                    f"Circular dependency detected in context env='{env_name}', loc='{loc.name}': {e}"
+                ) from e
+
+
 @app.callback(invoke_without_command=True)
 def main(
     ctx: typer.Context, file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file.")
@@ -275,11 +296,12 @@ def add_env_var(
 
     manager.add_variable_value(new_var_value)
 
-    # Check for circular dependencies
-    all_vars = {}
-    for vv in manager.variable_values:
-        all_vars[vv.variable_name] = vv.value
-    _check_for_circular_dependencies(all_vars)
+    # Check for circular dependencies in all contexts
+    try:
+        _check_all_contexts_for_circular_dependencies(manager)
+    except ValueError as e:
+        error_console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(code=1) from e
 
     try:
         write_envars_yml(manager, file_path)
