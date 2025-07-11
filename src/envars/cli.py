@@ -316,6 +316,9 @@ def print_envars(
 def tree_command(
     ctx: typer.Context,
     decrypt: bool = typer.Option(False, "--decrypt", "-d", help="Decrypt secret values."),
+    truncate: int = typer.Option(
+        20, "--truncate", "-t", help="Length to truncate secret values to. Use 0 to disable truncation."
+    ),
 ):
     """Prints the contents of the envars.yml file in a tree view."""
     manager = ctx.obj
@@ -342,6 +345,16 @@ def tree_command(
                     value = _get_decrypted_value(manager, vv) if decrypt and isinstance(vv.value, Secret) else vv.value
                 except ValueError as e:
                     value = f"[DECRYPTION FAILED: {e}]"
+
+                display_value = value
+                is_secret = isinstance(vv.value, Secret)
+                label = "Value:"
+                if is_secret and not decrypt:
+                    if truncate > 0:
+                        display_value = f"{str(value)[:truncate]}..."
+                    display_value = f"[bold yellow]{display_value}[/]"
+                    label = "Encrypted Value:"
+
                 scope_str = f"Scope: {vv.scope_type}"
                 if vv.environment_name:
                     scope_str += f", Env: {vv.environment_name}"
@@ -351,7 +364,7 @@ def tree_command(
                         "Unknown",
                     )
                     scope_str += f", Loc: {loc_name}"
-                v_tree.add(f"({scope_str}) [cyan]Value:[/] {value}")
+                v_tree.add(f"({scope_str}) [cyan]{label}[/] {display_value}")
 
     console.print(tree)
 
