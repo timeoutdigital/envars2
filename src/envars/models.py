@@ -5,22 +5,24 @@ from typing import Any
 class Variable:
     """Represents a generic configuration variable, identified by its unique name."""
 
-    def __init__(self, name: str, description: str | None = None):
+    def __init__(self, name: str, description: str | None = None, validation: str | None = None):
         # The name is the unique identifier for the variable.
         self.name: str = name
         self.description: str | None = description
+        self.validation: str | None = validation
 
     def to_dict(self) -> dict[str, Any]:
         """Converts the Variable object to a dictionary."""
         return {
             "name": self.name,
             "description": self.description,
+            "validation": self.validation,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
         """Creates a Variable object from a dictionary."""
-        var = cls(name=data["name"], description=data.get("description"))
+        var = cls(name=data["name"], description=data.get("description"), validation=data.get("validation"))
         return var
 
     def __repr__(self):

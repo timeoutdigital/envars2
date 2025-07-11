@@ -1253,3 +1253,48 @@ environment_variables:
         result = runner.invoke(app, ["--file", file_path, "add", "VAR_B={{ VAR_A }}", "--env", "dev", "--loc", "loc1"])
         assert result.exit_code == 1
         assert "Circular dependency detected in context env='dev', loc='loc1'" in result.stderr
+
+
+class TestValidation:
+    def test_add_variable_with_validation(self, tmp_path):
+        file_path = create_envars_file(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "--file",
+                file_path,
+                "add",
+                "MY_VAR=valid_value",
+                "--validation",
+                "^valid_value$",
+            ],
+        )
+        assert result.exit_code == 0
+        data = read_yaml_file(file_path)
+        assert data["environment_variables"]["MY_VAR"]["validation"] == "^valid_value$"
+
+    def test_add_variable_with_failing_validation(self, tmp_path):
+        initial_content = """
+environment_variables:
+  MY_VAR:
+    validation: "^valid_value$"
+"""
+        file_path = create_envars_file(tmp_path, initial_content)
+        result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=invalid_value"])
+        assert result.exit_code == 1
+        assert (
+            "Value 'invalid_value' for variable 'MY_VAR' does not match validation regex: ^valid_value$"
+            in result.stderr.replace("\n", "")
+        )
+
+    def test_validate_command_with_invalid_value(self, tmp_path):
+        initial_content = """
+environment_variables:
+  MY_VAR:
+    validation: "^valid_value$"
+    default: "invalid_value"
+"""
+        file_path = create_envars_file(tmp_path, initial_content)
+        result = runner.invoke(app, ["--file", file_path, "validate"])
+        assert result.exit_code == 1
+        assert "Value 'invalid_value' for variable 'MY_VAR' does not match validation regex" in result.stderr

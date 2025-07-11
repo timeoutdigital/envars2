@@ -82,7 +82,13 @@ def load_from_yaml(file_path: str) -> VariableManager:
     for var_name, var_data in data.get("environment_variables", {}).items():
         if var_name.upper() != var_name:
             raise ValueError(f"Variable name '{var_name}' must be uppercase.")
-        manager.add_variable(Variable(name=var_name, description=var_data.get("description")))
+        manager.add_variable(
+            Variable(
+                name=var_name,
+                description=var_data.get("description"),
+                validation=var_data.get("validation"),
+            )
+        )
 
         if "default" in var_data:
             manager.add_variable_value(
@@ -94,7 +100,7 @@ def load_from_yaml(file_path: str) -> VariableManager:
             )
 
         for key, value in var_data.items():
-            if key in ["description", "default"]:
+            if key in ["description", "default", "validation"]:
                 continue
 
             if key in manager.environments:
@@ -188,6 +194,8 @@ def write_envars_yml(manager: VariableManager, file_path: str):
         var_data = {}
         if variable.description:
             var_data["description"] = variable.description
+        if variable.validation:
+            var_data["validation"] = variable.validation
 
         # Group variable values by scope
         default_value = None
@@ -405,6 +413,19 @@ def _get_resolved_variables(
     return resolved_vars
 
 
+def get_all_envs(loc: str, file_path: str = "envars.yml") -> dict:
+    """Loads and resolves variables for all environments in a given location."""
+    manager = load_from_yaml(file_path)
+    if loc is None:
+        loc = get_default_location_name(manager)
+        if loc is None:
+            raise ValueError("Could not determine default location. Please specify with --loc.")
+    all_envs = {}
+    for env_name in manager.environments:
+        all_envs[env_name] = _get_resolved_variables(manager, loc, env_name, decrypt=True)
+    return all_envs
+
+
 def get_env(env: str, loc: str, file_path: str = "envars.yml") -> dict:
     """Loads and resolves variables for a given environment and location."""
     manager = load_from_yaml(file_path)
@@ -413,3 +434,16 @@ def get_env(env: str, loc: str, file_path: str = "envars.yml") -> dict:
         if loc is None:
             raise ValueError("Could not determine default location. Please specify with --loc.")
     return _get_resolved_variables(manager, loc, env, decrypt=True)
+
+
+def _validate_variable_value(manager: VariableManager, var_name: str, value: str):
+    """Validates a variable's value against its validation rule."""
+    if var_name in manager.variables:
+        variable = manager.variables[var_name]
+        if variable.validation:
+            import re
+
+            if not re.match(variable.validation, value):
+                raise ValueError(
+                    f"Value '{value}' for variable '{var_name}' does not match validation regex: {variable.validation}"
+                )

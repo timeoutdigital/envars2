@@ -13,6 +13,7 @@ from .main import (
     _check_for_circular_dependencies,
     _get_decrypted_value,
     _get_resolved_variables,
+    _validate_variable_value,
     load_from_yaml,
     write_envars_yml,
 )
@@ -136,6 +137,7 @@ def add_env_var(
     secret: bool = typer.Option(False, "--secret", "-s", help="Encrypt the variable value."),
     no_secret: bool = typer.Option(False, "--no-secret", help="Store a sensitive variable as plaintext."),
     description: str = typer.Option(None, "--description", "-d", help="Description for the variable."),
+    validation: str = typer.Option(None, "--validation", help="Regex pattern for value validation."),
 ):
     """Adds or updates an environment variable in the envars.yml file."""
     manager = ctx.obj
@@ -175,6 +177,13 @@ def add_env_var(
         error_console.print("[bold red]Error:[/] Variable names must be uppercase.")
         raise typer.Exit(code=1)
 
+    # Validate the value if a validation rule exists
+    try:
+        _validate_variable_value(manager, var_name, var_value)
+    except ValueError as e:
+        error_console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(code=1) from e
+
     # Check for sensitive variable names
     sensitive_keywords = ["PASSWORD", "TOKEN", "SECRET", "KEY"]
     if any(keyword in var_name for keyword in sensitive_keywords) and not secret and not no_secret:
@@ -198,9 +207,12 @@ def add_env_var(
         if manager.description_mandatory and not description:
             error_console.print(f"[bold red]Error:[/] Description is mandatory for new variable '{var_name}'.")
             raise typer.Exit(code=1)
-        manager.add_variable(Variable(name=var_name, description=description))
-    elif description:
-        manager.variables[var_name].description = description
+        manager.add_variable(Variable(name=var_name, description=description, validation=validation))
+    else:
+        if description:
+            manager.variables[var_name].description = description
+        if validation:
+            manager.variables[var_name].validation = validation
 
     if secret:
         if not env and not loc:
@@ -703,6 +715,13 @@ def validate_command(
         _check_for_circular_dependencies(all_vars)
     except ValueError as e:
         errors.append(str(e))
+
+    # Check that all variable values match their validation rules
+    for vv in manager.variable_values:
+        try:
+            _validate_variable_value(manager, vv.variable_name, str(vv.value))
+        except ValueError as e:
+            errors.append(str(e))
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")

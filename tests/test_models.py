@@ -19,9 +19,9 @@ def test_variable_creation():
 
 
 def test_variable_to_dict():
-    var = Variable(name="API_KEY", description="Test API Key")
+    var = Variable(name="API_KEY", description="Test API Key", validation=".*")
     var_dict = var.to_dict()
-    assert var_dict == {"name": "API_KEY", "description": "Test API Key"}
+    assert var_dict == {"name": "API_KEY", "description": "Test API Key", "validation": ".*"}
 
 
 def test_variable_from_dict():
