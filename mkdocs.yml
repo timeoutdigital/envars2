@@ -27,6 +27,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Usage as a Library: USAGE_AS_LIBRARY.md
   - Architecture: ARCHITECTURE.md
   - Analysis: ANALYSIS.md
   - Assessment: ASSESSMENT.md
