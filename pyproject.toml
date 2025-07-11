@@ -1,9 +1,9 @@
 [project]
-name = "envars"
+name = "envars2"
 version = "0.1.0"
-description = "A modern Python CLI project"
+description = "Application Config As Code"
 authors = [
-    { name = "Your Name", email = "your.email@example.com" }
+    { name = "Keith Harvey", email = "keith.harvey@timeout.com" }
 ]
 dependencies = [
     "boto3",
@@ -30,11 +30,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.uv]
-# You can add uv specific configurations here if needed
-# For example:
-# no-binary = ["some-package"]
 
 [tool.ruff]
 line-length = 120
