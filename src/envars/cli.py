@@ -2,22 +2,25 @@ import os
 import subprocess
 import warnings
 
-warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
-
 import typer
 import yaml
-from jinja2 import Environment
 from rich.console import Console
 from rich.tree import Tree
 
-from .aws_kms import AWSKMSAgent
-from .aws_ssm import SSMParameterStore
 from .cloud_utils import get_default_location_name
-from .gcp_kms import GCPKMSAgent
-from .gcp_secret_manager import GCPSecretManager
-from .main import Secret, load_from_yaml, write_envars_yml
+from .main import (
+    Secret,
+    _check_for_circular_dependencies,
+    _get_decrypted_value,
+    _get_resolved_variables,
+    load_from_yaml,
+    write_envars_yml,
+)
 from .models import Environment as EnvarsEnvironment
 from .models import Location, Variable, VariableManager, VariableValue
+
+warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
+
 
 app = typer.Typer()
 console = Console()
@@ -163,9 +166,13 @@ def add_env_var(
 
         # Determine KMS provider
         if manager.kms_key.startswith("arn:aws:kms:"):
+            from .aws_kms import AWSKMSAgent
+
             agent = AWSKMSAgent()
             key_id = manager.kms_key
         elif manager.kms_key.startswith("projects/"):
+            from .gcp_kms import GCPKMSAgent
+
             agent = GCPKMSAgent()
             key_id = manager.kms_key
         else:
@@ -257,41 +264,6 @@ def add_env_var(
         raise typer.Exit(code=1) from e
 
 
-def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
-    """Helper function to decrypt a single VariableValue."""
-    if not isinstance(vv.value, Secret):
-        return vv.value
-
-    if not manager.kms_key:
-        error_console.print("[bold red]Error:[/] Cannot decrypt without a kms_key in configuration.")
-        raise typer.Exit(code=1)
-
-    # Get encryption context from the variable's scope
-    encryption_context = {"app": manager.app or ""}
-    if vv.environment_name:
-        encryption_context["environment"] = vv.environment_name
-    if vv.location_id:
-        loc_name = next((l.name for l in manager.locations.values() if l.location_id == vv.location_id), None)
-        if loc_name:
-            encryption_context["location"] = loc_name
-
-    try:
-        # Determine KMS provider and decrypt
-        if manager.kms_key.startswith("arn:aws:kms:"):
-            agent = AWSKMSAgent()
-            return agent.decrypt(str(vv.value), encryption_context)
-        elif manager.kms_key.startswith("projects/"):
-            agent = GCPKMSAgent()
-            key_id = manager.kms_key
-            return agent.decrypt(str(vv.value), key_id, encryption_context)
-        else:
-            error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
-            raise typer.Exit(code=1)
-    except Exception as e:
-        error_console.print(f"[bold red]Error decrypting {vv.variable_name}:[/] {e}")
-        return "[DECRYPTION FAILED]"
-
-
 @app.command(name="print")
 def print_envars(
     ctx: typer.Context,
@@ -306,9 +278,13 @@ def print_envars(
             error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
             raise typer.Exit(code=1)
 
-    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
-    for k, v in resolved_vars.items():
-        console.print(f"{k}={v}")
+    try:
+        resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
+        for k, v in resolved_vars.items():
+            console.print(f"{k}={v}")
+    except ValueError as e:
+        error_console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(code=1) from e
 
 
 @app.command(name="tree")
@@ -337,7 +313,10 @@ def tree_command(
         v_tree = var_tree.add(f"[bold]{var_name}[/] - {var.description}")
         for vv in manager.variable_values:
             if vv.variable_name == var_name:
-                value = _get_decrypted_value(manager, vv) if decrypt and isinstance(vv.value, Secret) else vv.value
+                try:
+                    value = _get_decrypted_value(manager, vv) if decrypt and isinstance(vv.value, Secret) else vv.value
+                except ValueError as e:
+                    value = f"[DECRYPTION FAILED: {e}]"
                 scope_str = f"Scope: {vv.scope_type}"
                 if vv.environment_name:
                     scope_str += f", Env: {vv.environment_name}"
@@ -350,119 +329,6 @@ def tree_command(
                 v_tree.add(f"({scope_str}) [cyan]Value:[/] {value}")
 
     console.print(tree)
-
-
-def _check_for_circular_dependencies(variables: dict[str, str | Secret]):
-    """Checks for circular dependencies in templated variables."""
-    from collections import deque
-
-    from jinja2 import meta
-
-    jinja_env = Environment()
-    adj = {v: [] for v in variables}
-    in_degree = dict.fromkeys(variables, 0)
-    for var_name, value in variables.items():
-        if isinstance(value, str):
-            try:
-                ast = jinja_env.parse(value)
-                deps = meta.find_undeclared_variables(ast) - {"env"}
-                for dep in deps:
-                    if dep in variables:
-                        adj[dep].append(var_name)
-                        in_degree[var_name] += 1
-            except Exception:
-                pass
-    queue = deque([v for v in variables if in_degree[v] == 0])
-    sorted_order = []
-    while queue:
-        u = queue.popleft()
-        sorted_order.append(u)
-        for v in adj.get(u, []):
-            in_degree[v] -= 1
-            if in_degree[v] == 0:
-                queue.append(v)
-    if len(sorted_order) != len(variables):
-        cycle_nodes = sorted(list(set(variables.keys()) - set(sorted_order)))
-        error_console.print(f"[bold red]Error:[/] Circular dependency detected in variables: {', '.join(cycle_nodes)}")
-        raise typer.Exit(code=1)
-    return sorted_order
-
-
-def _get_resolved_variables(
-    manager: VariableManager,
-    loc: str,
-    env: str | None,
-    decrypt: bool,
-) -> dict[str, str | Secret]:
-    """Helper function to get all resolved variables for a given context."""
-    if env is None:
-        env = os.environ.get("STAGE")
-        if env is None:
-            error_console.print(
-                "[bold red]Error:[/] The --env option is required if the STAGE environment variable is not set."
-            )
-            raise typer.Exit(code=1)
-
-    if env not in manager.environments:
-        error_console.print(f"[bold red]Error:[/] Environment '{env}' not found in configuration.")
-        raise typer.Exit(code=1)
-
-    if not any(l.name == loc for l in manager.locations.values()):
-        error_console.print(f"[bold red]Error:[/] Location '{loc}' not found in configuration.")
-        raise typer.Exit(code=1)
-
-    resolved_vars = {}
-    for var_name in manager.variables:
-        variable_value_obj = manager.get_variable(var_name, env, loc)
-        if variable_value_obj:
-            value = (
-                _get_decrypted_value(manager, variable_value_obj)
-                if decrypt and isinstance(variable_value_obj.value, Secret)
-                else variable_value_obj.value
-            )
-            if value == "[DECRYPTION FAILED]":
-                raise typer.Exit(code=1)
-            resolved_vars[var_name] = value
-
-    # Template substitution with Jinja2
-    sorted_order = _check_for_circular_dependencies(resolved_vars)
-    jinja_env = Environment()
-    rendered = {}
-    for var_name in sorted_order:
-        value = resolved_vars[var_name]
-        if isinstance(value, str):
-            try:
-                template = jinja_env.from_string(value)
-                context = {"env": os.environ}
-                context.update(rendered)
-                rendered[var_name] = template.render(context)
-            except Exception:
-                rendered[var_name] = value
-        else:
-            rendered[var_name] = value
-    resolved_vars = rendered
-
-    # Parameter Store substitution
-    ssm_store = SSMParameterStore()
-    gcp_secret_manager = GCPSecretManager()
-    for var_name, value in resolved_vars.items():
-        if isinstance(value, str):
-            if value.startswith("parameter_store:"):
-                param_name = value.split(":", 1)[1]
-                param_value = ssm_store.get_parameter(param_name)
-                if param_value is None:
-                    error_console.print(f"[bold red]Error:[/] Parameter '{param_name}' not found in Parameter Store.")
-                    raise typer.Exit(code=1)
-                resolved_vars[var_name] = param_value
-            elif value.startswith("gcp_secret_manager:"):
-                secret_name = value.split(":", 1)[1]
-                secret_value = gcp_secret_manager.access_secret_version(secret_name)
-                if secret_value is None:
-                    error_console.print(f"[bold red]Error:[/] Secret '{secret_name}' not found in GCP Secret Manager.")
-                    raise typer.Exit(code=1)
-                resolved_vars[var_name] = secret_value
-
-    return resolved_vars
 
 
 @app.command(name="exec", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
@@ -490,7 +356,11 @@ def exec_command(
         if loc is None:
             error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
             raise typer.Exit(code=1)
-    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
+    try:
+        resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
+    except ValueError as e:
+        error_console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(code=1) from e
 
     new_env = os.environ.copy()
     for k, v in resolved_vars.items():
@@ -502,10 +372,10 @@ def exec_command(
         raise typer.Exit(code=1)
 
     try:
-        os.execvpe(command[0], command, new_env)
-    except FileNotFoundError:
+        os.execvpe(command[0], command, new_env)  # noqa: S606
+    except FileNotFoundError as e:
         error_console.print(f"[bold red]Error:[/] Command not found: {command[0]}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except Exception as e:
         error_console.print(f"[bold red]Error executing command:[/] {e}")
         raise typer.Exit(code=1) from e
@@ -526,8 +396,12 @@ def yaml_command(
         if loc is None:
             error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
             raise typer.Exit(code=1)
-    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
-    console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
+    try:
+        resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
+        console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
+    except ValueError as e:
+        error_console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(code=1) from e
 
 
 @app.command(name="set-systemd-env")
@@ -546,7 +420,11 @@ def set_systemd_env(
         if loc is None:
             error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
             raise typer.Exit(code=1)
-    resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+    try:
+        resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
+    except ValueError as e:
+        error_console.print(f"[bold red]Error:[/] {e}")
+        raise typer.Exit(code=1) from e
 
     if not resolved_vars:
         console.print("No variables to set.")
@@ -556,11 +434,11 @@ def set_systemd_env(
     command.extend([f"{k}={v}" for k, v in resolved_vars.items()])
 
     try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)  # noqa: S603
         console.print("[bold green]Successfully set systemd environment variables.[/]")
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         error_console.print("[bold red]Error:[/] `systemctl` command not found.")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
     except subprocess.CalledProcessError as e:
         error_console.print(f"[bold red]Error setting systemd environment variables:[/] {e.stderr}")
         raise typer.Exit(code=1) from e
@@ -597,6 +475,14 @@ def config_command(
     if add_env:
         manager.add_environment(EnvarsEnvironment(name=add_env))
     if remove_env:
+        # Check if the environment is in use
+        vars_using_env = [vv.variable_name for vv in manager.variable_values if vv.environment_name == remove_env]
+        if vars_using_env:
+            error_console.print(
+                f"[bold red]Error:[/] Cannot remove environment '{remove_env}' because it is in use by the following variables: {', '.join(sorted(set(vars_using_env)))}"  # NOQA E501
+            )
+            raise typer.Exit(code=1)
+
         if remove_env in manager.environments:
             del manager.environments[remove_env]
     if add_loc:
@@ -609,6 +495,15 @@ def config_command(
     if remove_loc:
         loc_to_remove = next((loc for loc in manager.locations.values() if loc.name == remove_loc), None)
         if loc_to_remove:
+            # Check if the location is in use
+            vars_using_loc = [
+                vv.variable_name for vv in manager.variable_values if vv.location_id == loc_to_remove.location_id
+            ]
+            if vars_using_loc:
+                error_console.print(
+                    f"[bold red]Error:[/] Cannot remove location '{remove_loc}' because it is in use by the following variables: {', '.join(sorted(set(vars_using_loc)))}"  # NOQA E501
+                )
+                raise typer.Exit(code=1)
             del manager.locations[loc_to_remove.location_id]
     if description_mandatory is not None:
         manager.description_mandatory = description_mandatory
@@ -644,10 +539,11 @@ def rotate_kms_key(
 
     for vv in manager.variable_values:
         if isinstance(vv.value, Secret):
-            decrypted_value = _get_decrypted_value(manager, vv)
-            if decrypted_value == "[DECRYPTION FAILED]":
-                error_console.print(f"[bold red]Error:[/] Failed to decrypt '{vv.variable_name}'. Aborting.")
-                raise typer.Exit(code=1)
+            try:
+                decrypted_value = _get_decrypted_value(manager, vv)
+            except ValueError as e:
+                error_console.print(f"[bold red]Error:[/] Failed to decrypt '{vv.variable_name}'. Aborting. {e}")
+                raise typer.Exit(code=1) from e
 
             # Re-encrypt with the new key
             new_manager.kms_key = new_kms_key
@@ -664,9 +560,13 @@ def rotate_kms_key(
                     encryption_context["location"] = loc_name
 
             if new_kms_key.startswith("arn:aws:kms:"):
+                from .aws_kms import AWSKMSAgent
+
                 agent = AWSKMSAgent()
                 encrypted_value = agent.encrypt(decrypted_value, new_kms_key, encryption_context)
             elif new_kms_key.startswith("projects/"):
+                from .gcp_kms import GCPKMSAgent
+
                 agent = GCPKMSAgent()
                 encrypted_value = agent.encrypt(decrypted_value, new_kms_key, encryption_context)
             else:
@@ -741,8 +641,8 @@ def validate_command(
         all_vars[vv.variable_name] = vv.value
     try:
         _check_for_circular_dependencies(all_vars)
-    except typer.Exit:
-        errors.append("Circular dependency detected in templated variables.")
+    except ValueError as e:
+        errors.append(str(e))
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")

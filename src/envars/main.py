@@ -1,7 +1,19 @@
-import yaml
+import os
+import sys
+from collections import deque
 
+import yaml
+from jinja2 import Environment, meta
+
+from .aws_kms import AWSKMSAgent
+from .aws_ssm import SSMParameterStore
+from .cloud_utils import get_default_location_name
+from .gcp_kms import GCPKMSAgent
+from .gcp_secret_manager import GCPSecretManager
 from .models import (
-    Environment,
+    Environment as EnvarsEnvironment,
+)
+from .models import (
     Location,
     Variable,
     VariableManager,
@@ -54,7 +66,7 @@ def load_from_yaml(file_path: str) -> VariableManager:
 
     # Load environments
     for env_name in data.get("configuration", {}).get("environments", []):
-        manager.add_environment(Environment(name=env_name))
+        manager.add_environment(EnvarsEnvironment(name=env_name))
 
     # Load locations
     for acc_data in data.get("configuration", {}).get("locations", []):
@@ -260,28 +272,144 @@ def write_envars_yml(manager: VariableManager, file_path: str):
                     f.write("\n")
 
 
-if __name__ == "__main__":
+def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
+    """Helper function to decrypt a single VariableValue."""
+    if not isinstance(vv.value, Secret):
+        return vv.value
+
+    if not manager.kms_key:
+        raise ValueError("Cannot decrypt without a kms_key in configuration.")
+
+    # Get encryption context from the variable's scope
+    encryption_context = {"app": manager.app or ""}
+    if vv.environment_name:
+        encryption_context["environment"] = vv.environment_name
+    if vv.location_id:
+        loc_name = next((l.name for l in manager.locations.values() if l.location_id == vv.location_id), None)
+        if loc_name:
+            encryption_context["location"] = loc_name
+
     try:
-        manager = load_from_yaml("envars.yml")
+        # Determine KMS provider and decrypt
+        if manager.kms_key.startswith("arn:aws:kms:"):
+            agent = AWSKMSAgent()
+            return agent.decrypt(str(vv.value), encryption_context)
+        elif manager.kms_key.startswith("projects/"):
+            agent = GCPKMSAgent()
+            key_id = manager.kms_key
+            return agent.decrypt(str(vv.value), key_id, encryption_context)
+        else:
+            raise ValueError(f"Unknown KMS key format: {manager.kms_key}")
+    except Exception as e:
+        raise ValueError(f"Error decrypting {vv.variable_name}: {e}") from e
 
-        print("--- Loaded Data ---")
-        print(f"App: {manager.app}")
-        print(f"KMS Key: {manager.kms_key}")
-        print(f"Total VariableValues loaded: {len(manager.variable_values)}")
-        print("Variables:", list(manager.variables.keys()))
-        print("Environments:", list(manager.environments.keys()))
-        print("Locations:", [loc.name for loc in manager.locations.values()])
 
-        print("\n--- Retrieving Variable Values ---")
-        test_var = manager.get_variable("TEST", "prod")
-        print(f"TEST (prod): {test_var.value if test_var else None}")
-        test2_var = manager.get_variable("TEST2", "prod")
-        print(f"TEST2 (prod): {test2_var.value if test2_var else None}")
-        test3_var = manager.get_variable("TEST3")
-        print(f"TEST3 (default): {test3_var.value if test3_var else None}")
-        test3_var_specific = manager.get_variable("TEST3", "prod", "sandbox")
-        print(f"TEST3 (sandbox, prod): {test3_var_specific.value if test3_var_specific else None}")
-        test4_var_specific = manager.get_variable("TEST4", "prod", "sandbox")
-        print(f"TEST4 (prod, sandbox): {test4_var_specific.value if test4_var_specific else None}")
-    except DuplicateKeyError as e:
-        print(f"Error: {e}")
+def _check_for_circular_dependencies(variables: dict[str, str | Secret]):
+    """Checks for circular dependencies in templated variables."""
+    jinja_env = Environment(autoescape=True)
+    adj = {v: [] for v in variables}
+    in_degree = dict.fromkeys(variables, 0)
+    for var_name, value in variables.items():
+        if isinstance(value, str):
+            try:
+                ast = jinja_env.parse(value)
+                deps = meta.find_undeclared_variables(ast) - {"env"}
+                for dep in deps:
+                    if dep in variables:
+                        adj[dep].append(var_name)
+                        in_degree[var_name] += 1
+            except Exception as e:
+                print(f"Could not parse template for {var_name}: {e}", file=sys.stderr)
+    queue = deque([v for v in variables if in_degree[v] == 0])
+    sorted_order = []
+    while queue:
+        u = queue.popleft()
+        sorted_order.append(u)
+        for v in adj.get(u, []):
+            in_degree[v] -= 1
+            if in_degree[v] == 0:
+                queue.append(v)
+    if len(sorted_order) != len(variables):
+        cycle_nodes = sorted(set(variables.keys()) - set(sorted_order))
+        raise ValueError(f"Circular dependency detected in variables: {', '.join(cycle_nodes)}")
+    return sorted_order
+
+
+def _get_resolved_variables(
+    manager: VariableManager,
+    loc: str,
+    env: str | None,
+    decrypt: bool,
+) -> dict[str, str | Secret]:
+    """Helper function to get all resolved variables for a given context."""
+    if env is None:
+        env = os.environ.get("STAGE")
+        if env is None:
+            raise ValueError("The --env option is required if the STAGE environment variable is not set.")
+
+    if env not in manager.environments:
+        raise ValueError(f"Environment '{env}' not found in configuration.")
+
+    if not any(l.name == loc for l in manager.locations.values()):
+        raise ValueError(f"Location '{loc}' not found in configuration.")
+
+    resolved_vars = {}
+    for var_name in manager.variables:
+        variable_value_obj = manager.get_variable(var_name, env, loc)
+        if variable_value_obj:
+            value = (
+                _get_decrypted_value(manager, variable_value_obj)
+                if decrypt and isinstance(variable_value_obj.value, Secret)
+                else variable_value_obj.value
+            )
+            if value == "[DECRYPTION FAILED]":
+                raise ValueError("Decryption failed")
+            resolved_vars[var_name] = value
+
+    # Template substitution with Jinja2
+    sorted_order = _check_for_circular_dependencies(resolved_vars)
+    jinja_env = Environment(autoescape=True)
+    rendered = {}
+    for var_name in sorted_order:
+        value = resolved_vars[var_name]
+        if isinstance(value, str):
+            try:
+                template = jinja_env.from_string(value)
+                context = {"env": os.environ}
+                context.update(rendered)
+                rendered[var_name] = template.render(context)
+            except Exception:
+                rendered[var_name] = value
+        else:
+            rendered[var_name] = value
+    resolved_vars = rendered
+
+    # Parameter Store substitution
+    ssm_store = SSMParameterStore()
+    gcp_secret_manager = GCPSecretManager()
+    for var_name, value in resolved_vars.items():
+        if isinstance(value, str):
+            if value.startswith("parameter_store:"):
+                param_name = value.split(":", 1)[1]
+                param_value = ssm_store.get_parameter(param_name)
+                if param_value is None:
+                    raise ValueError(f"Parameter '{param_name}' not found in Parameter Store.")
+                resolved_vars[var_name] = param_value
+            elif value.startswith("gcp_secret_manager:"):
+                secret_name = value.split(":", 1)[1]
+                secret_value = gcp_secret_manager.access_secret_version(secret_name)
+                if secret_value is None:
+                    raise ValueError(f"Secret '{secret_name}' not found in GCP Secret Manager.")
+                resolved_vars[var_name] = secret_value
+
+    return resolved_vars
+
+
+def get_env(env: str, loc: str, file_path: str = "envars.yml") -> dict:
+    """Loads and resolves variables for a given environment and location."""
+    manager = load_from_yaml(file_path)
+    if loc is None:
+        loc = get_default_location_name(manager)
+        if loc is None:
+            raise ValueError("Could not determine default location. Please specify with --loc.")
+    return _get_resolved_variables(manager, loc, env, decrypt=True)

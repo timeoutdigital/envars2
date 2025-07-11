@@ -598,19 +598,7 @@ environment_variables:
 
 
 def test_validate_command_missing_variable_definition(tmp_path):
-    # This YAML is structurally valid but logically inconsistent.
     # The `load_from_yaml` will load it, but `validate` should catch it.
-    initial_content = """
-configuration:
-  environments:
-    - dev
-environment_variables:
-  MY_VAR:
-    description: "This is fine"
-  # ANOTHER_VAR is not defined here, but has values below
-  ANOTHER_VAR:
-    default: "another_value"
-"""
     file_path = tmp_path / "invalid_vars.yml"
     with open(file_path, "w") as f:
         f.write(
@@ -618,6 +606,7 @@ environment_variables:
 environment_variables:
   MY_VAR:
     description: "This is fine"
+  # ANOTHER_VAR is not defined here, but has values below
   ANOTHER_VAR:
     default: "another_value"
 """
@@ -835,8 +824,8 @@ environment_variables:
     assert output_dict["envars"]["PORT"] == "5432"
 
 
-@patch("envars.cli.GCPSecretManager")
-@patch("envars.cli.SSMParameterStore")
+@patch("envars.main.GCPSecretManager")
+@patch("envars.main.SSMParameterStore")
 def test_variable_from_parameter_store(mock_ssm_store, mock_gcp_secret_manager, tmp_path):
     mock_ssm_instance = mock_ssm_store.return_value
     mock_ssm_instance.get_parameter.return_value = "ssm_value"
@@ -859,7 +848,7 @@ environment_variables:
     mock_ssm_instance.get_parameter.assert_called_once_with("/my/parameter")
 
 
-@patch("envars.cli.GCPSecretManager")
+@patch("envars.main.GCPSecretManager")
 def test_variable_from_gcp_secret_manager(mock_gcp_secret_manager, tmp_path):
     mock_gcp_instance = mock_gcp_secret_manager.return_value
     mock_gcp_instance.access_secret_version.return_value = "gcp_secret_value"
@@ -937,8 +926,8 @@ environment_variables:
     assert "Invalid nesting in 'PROD_ONLY_VAR' -> 'prod' -> 'master'" in result.stderr.replace("\n", "")
 
 
-@patch("envars.cli.GCPSecretManager")
-@patch("envars.cli.SSMParameterStore")
+@patch("envars.main.GCPSecretManager")
+@patch("envars.main.SSMParameterStore")
 def test_remote_variable_templating(mock_ssm_store, mock_gcp_secret_manager, tmp_path):
     mock_ssm_instance = mock_ssm_store.return_value
     mock_ssm_instance.get_parameter.return_value = "ssm_value"
@@ -1117,3 +1106,42 @@ def test_config_command_no_options_prints_help(tmp_path):
     assert result.exit_code == 0
     assert "Usage: " in result.stdout
     assert "config [OPTIONS]" in result.stdout
+
+
+def test_config_remove_env_in_use(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+    - prod
+environment_variables:
+  MY_VAR:
+    dev: "dev_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "config", "--remove-env", "dev"])
+    assert result.exit_code == 1
+    assert "Cannot remove environment 'dev' because it is in use" in result.stderr
+    assert "MY_VAR" in result.stderr
+
+    data = read_yaml_file(file_path)
+    assert "dev" in data["configuration"]["environments"]
+
+
+def test_config_remove_loc_in_use(tmp_path):
+    initial_content = """
+configuration:
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  MY_VAR:
+    my_loc: "loc_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "config", "--remove-loc", "my_loc"])
+    assert result.exit_code == 1
+    assert "Cannot remove location 'my_loc' because it is in use" in result.stderr
+    assert "MY_VAR" in result.stderr
+
+    data = read_yaml_file(file_path)
+    assert {"my_loc": "loc123"} in data["configuration"]["locations"]
