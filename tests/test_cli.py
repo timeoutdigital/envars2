@@ -1,6 +1,9 @@
+import base64
 from unittest.mock import patch
 
+import boto3
 import yaml
+from botocore.stub import Stubber
 from typer.testing import CliRunner
 
 from envars.cli import app
@@ -126,11 +129,7 @@ configuration:
     assert data["environment_variables"]["MY_VAR"]["dev"]["my_loc"] == "specific_value"
 
 
-@patch("envars.cli.AWSKMSAgent")
-def test_add_secret_variable(mock_aws_kms_agent, tmp_path):
-    mock_agent_instance = mock_aws_kms_agent.return_value
-    mock_agent_instance.encrypt.return_value = "encrypted_value"
-
+def test_add_secret_variable(tmp_path):
     initial_content = """
 configuration:
   app: MyApp
@@ -141,35 +140,42 @@ configuration:
     - my_loc: "loc123"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(
-        app,
-        [
-            "--file",
-            file_path,
-            "add",
-            "MY_SECRET=super_secret_value",
-            "--env",
-            "dev",
-            "--loc",
-            "my_loc",
-            "--secret",
-        ],
-    )
-    assert result.exit_code == 0
-    assert "Successfully added/updated MY_SECRET in" in result.stdout
 
-    # Verify the agent was called correctly
-    mock_agent_instance.encrypt.assert_called_once_with(
-        "super_secret_value",
-        "arn:aws:kms:us-east-1:123456789012:key/mrk-12345",
-        {"app": "MyApp", "environment": "dev", "location": "my_loc"},
-    )
+    kms_client = boto3.client("kms", region_name="us-east-1")
+    with Stubber(kms_client) as stubber:
+        encrypted_value = base64.b64encode(b"encrypted_value").decode("utf-8")
+        stubber.add_response(
+            "encrypt",
+            {"CiphertextBlob": b"encrypted_value"},
+            {
+                "KeyId": "arn:aws:kms:us-east-1:123456789012:key/mrk-12345",
+                "Plaintext": b"super_secret_value",
+                "EncryptionContext": {"app": "MyApp", "environment": "dev", "location": "my_loc"},
+            },
+        )
+        with patch("boto3.client", return_value=kms_client):
+            result = runner.invoke(
+                app,
+                [
+                    "--file",
+                    file_path,
+                    "add",
+                    "MY_SECRET=super_secret_value",
+                    "--env",
+                    "dev",
+                    "--loc",
+                    "my_loc",
+                    "--secret",
+                ],
+            )
+            assert result.exit_code == 0
+            assert "Successfully added/updated MY_SECRET in" in result.stdout
+            stubber.assert_no_pending_responses()
 
-    # Verify the output YAML
     with open(file_path) as f:
         content = f.read()
-        assert "!secret |" in content
-        assert "      encrypted_value" in content
+        assert "!secret" in content
+        assert encrypted_value in content
 
 
 def test_update_existing_variable(tmp_path):
@@ -220,12 +226,9 @@ configuration:
     assert data["environment_variables"]["MY_VAR"]["non_existent_env"]["my_loc"] == "value"
 
 
-@patch("envars.cli.AWSKMSAgent")
-def test_print_decrypt_secret(mock_aws_kms_agent, tmp_path):
-    mock_agent_instance = mock_aws_kms_agent.return_value
-    mock_agent_instance.decrypt.return_value = "decrypted_value"
-
-    initial_content = """
+def test_print_decrypt_secret(tmp_path):
+    encrypted_string = base64.b64encode(b"some_encrypted_bytes").decode("utf-8")
+    initial_content = f"""
 configuration:
   app: MyApp
   kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
@@ -236,33 +239,36 @@ configuration:
 environment_variables:
   MY_SECRET:
     dev:
-      my_loc: !secret |
-        encrypted_value
+      my_loc: !secret {encrypted_string}
 """
     file_path = create_envars_file(tmp_path, initial_content)
 
-    # Test that print decrypts by default
-    result = runner.invoke(
-        app,
-        [
-            "--file",
-            file_path,
-            "print",
-            "--env",
-            "dev",
-            "--loc",
-            "my_loc",
-        ],
-    )
-    assert result.exit_code == 0
-    assert "decrypted_value" in result.stdout
-    assert "encrypted_value" not in result.stdout
-
-    # Verify the agent was called correctly
-    mock_agent_instance.decrypt.assert_called_once_with(
-        "encrypted_value\n",
-        {"app": "MyApp", "environment": "dev", "location": "my_loc"},
-    )
+    kms_client = boto3.client("kms", region_name="us-east-1")
+    with Stubber(kms_client) as stubber:
+        stubber.add_response(
+            "decrypt",
+            {"Plaintext": b"decrypted_value"},
+            {
+                "CiphertextBlob": b"some_encrypted_bytes",
+                "EncryptionContext": {"app": "MyApp", "environment": "dev", "location": "my_loc"},
+            },
+        )
+        with patch("boto3.client", return_value=kms_client):
+            result = runner.invoke(
+                app,
+                [
+                    "--file",
+                    file_path,
+                    "print",
+                    "--env",
+                    "dev",
+                    "--loc",
+                    "my_loc",
+                ],
+            )
+            assert result.exit_code == 0, result.stderr
+            assert "MY_SECRET=decrypted_value" in result.stdout
+            stubber.assert_no_pending_responses()
 
 
 @patch("os.execvpe")
@@ -493,12 +499,9 @@ configuration:
     assert "Location 'other_loc' not found" in result.stderr
 
 
-@patch("envars.cli.AWSKMSAgent")
-def test_yaml_command(mock_aws_kms_agent, tmp_path):
-    mock_agent_instance = mock_aws_kms_agent.return_value
-    mock_agent_instance.decrypt.return_value = "decrypted_value"
-
-    initial_content = """
+def test_yaml_command(tmp_path):
+    encrypted_string = base64.b64encode(b"some_encrypted_bytes").decode("utf-8")
+    initial_content = f"""
 configuration:
   app: MyApp
   kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
@@ -513,26 +516,37 @@ environment_variables:
       my_loc: "dev_loc_value"
   MY_SECRET:
     dev:
-      my_loc: !secret "encrypted_value"
+      my_loc: !secret {encrypted_string}
 """
     file_path = create_envars_file(tmp_path, initial_content)
 
-    # Test with default decryption
-    result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
-    assert result.exit_code == 0
-    expected_yaml = """
+    kms_client = boto3.client("kms", region_name="us-east-1")
+    with Stubber(kms_client) as stubber:
+        stubber.add_response(
+            "decrypt",
+            {"Plaintext": b"decrypted_value"},
+            {
+                "CiphertextBlob": b"some_encrypted_bytes",
+                "EncryptionContext": {"app": "MyApp", "environment": "dev", "location": "my_loc"},
+            },
+        )
+        with patch("boto3.client", return_value=kms_client):
+            result = runner.invoke(app, ["--file", file_path, "yaml", "--env", "dev", "--loc", "my_loc"])
+            assert result.exit_code == 0
+            expected_yaml = """
 envars:
   MY_VAR: dev_loc_value
   MY_SECRET: decrypted_value
 """
-    output_dict = yaml.safe_load(result.stdout)
-    expected_dict = yaml.safe_load(expected_yaml)
-    assert output_dict == expected_dict
+            output_dict = yaml.safe_load(result.stdout)
+            expected_dict = yaml.safe_load(expected_yaml)
+            assert output_dict == expected_dict
+            stubber.assert_no_pending_responses()
 
 
-@patch("envars.cli.GCPSecretManager")
+@patch("google.auth.default", return_value=(None, None))
 @patch("subprocess.run")
-def test_set_systemd_env_command(mock_run, mock_gcp_secret_manager, tmp_path):
+def test_set_systemd_env_command(mock_run, mock_google_auth, tmp_path):
     mock_run.return_value.stdout = ""
     initial_content = """
 configuration:
@@ -878,7 +892,12 @@ configuration:
     file_path = create_envars_file(tmp_path, initial_content)
     result = runner.invoke(
         app,
-        ["--file", file_path, "add", "MY_VAR=gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest"],
+        [
+            "--file",
+            file_path,
+            "add",
+            "MY_VAR=gcp_secret_manager:projects/my-project/secrets/my-secret/versions/latest",
+        ],
     )
     assert result.exit_code == 1
     assert "Cannot use 'gcp_secret_manager:' with an AWS KMS key." in result.stderr
@@ -1007,8 +1026,7 @@ environment_variables:
     assert "Circular dependency detected" in result.stderr
 
 
-@patch("envars.cloud_utils.get_aws_account_id", return_value="123456789012")
-def test_default_location_aws(mock_get_aws_account_id, tmp_path):
+def test_default_location_aws(tmp_path):
     initial_content = """
 configuration:
   kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
@@ -1021,9 +1039,14 @@ environment_variables:
     default: "default_value"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
-    assert result.exit_code == 0
-    assert "MY_VAR=default_value" in result.stdout
+    sts_client = boto3.client("sts", region_name="us-east-1")
+    with Stubber(sts_client) as stubber:
+        stubber.add_response("get_caller_identity", {"Account": "123456789012"})
+        with patch("boto3.client", return_value=sts_client):
+            result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+            assert result.exit_code == 0
+            assert "MY_VAR=default_value" in result.stdout
+            stubber.assert_no_pending_responses()
 
 
 @patch("envars.cli.get_default_location_name", return_value="gcp-prod")
@@ -1055,9 +1078,14 @@ configuration:
     - aws-prod: "another-account"
 """
     file_path = create_envars_file(tmp_path, initial_content)
-    result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
-    assert result.exit_code == 1
-    assert "Could not determine default location" in result.stderr
+    sts_client = boto3.client("sts", region_name="us-east-1")
+    with Stubber(sts_client) as stubber:
+        stubber.add_response("get_caller_identity", {"Account": "123456789012"})
+        with patch("boto3.client", return_value=sts_client):
+            result = runner.invoke(app, ["--file", file_path, "print", "--env", "dev"])
+            assert result.exit_code == 1
+            assert "Could not determine default location" in result.stderr
+            stubber.assert_no_pending_responses()
 
 
 @patch("boto3.client")

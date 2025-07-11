@@ -1,5 +1,5 @@
 [project]
-name = "envars2"
+name = "envars"
 version = "0.1.0"
 description = "Application Config As Code"
 authors = [
