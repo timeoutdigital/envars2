@@ -6,6 +6,7 @@ import warnings
 import typer
 import yaml
 from rich.console import Console
+from rich.panel import Panel
 from rich.tree import Tree
 
 from .cloud_utils import get_default_location_name
@@ -108,8 +109,20 @@ def main(
     ctx: typer.Context, file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file.")
 ):
     if ctx.invoked_subcommand is None:
-        console.print("[bold green]Welcome to the Envars CLI![/]")
-        console.print("Use 'print' to load and display an envars file.")
+        welcome_message = (
+            "[bold green]🚀 Welcome to Envars![/bold green]\n"
+            "Your central hub for managing application configuration as code.\n\n"
+            "✨ [bold]Discover commands:[/bold] `envars --help`\n"
+            "🌱 [bold]Start a new project:[/bold] `envars init`"
+        )
+        panel = Panel(
+            welcome_message,
+            title="[bold cyan]Envars[/bold cyan]",
+            subtitle="[italic]Application Config as Code[/italic]",
+            border_style="blue",
+            expand=False,
+        )
+        console.print(panel)
         return
 
     if ctx.invoked_subcommand == "init":

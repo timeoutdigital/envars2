@@ -128,6 +128,15 @@ environment_variables:
       aws: "cloudformation_export:my-export-name"
 ```
 
+## Possible Enhancements
+
+Here are some ideas for future enhancements that could make `envars` even more powerful:
+
+- **AWS Secrets Manager Integration**: Add a new `aws_secrets_manager:` prefix to fetch secrets directly from AWS Secrets Manager, which is a more feature-rich service for managing sensitive data than SSM Parameter Store.
+- **Terraform State File Lookup**: Implement a `terraform_state:` prefix to read outputs directly from a Terraform state file (e.g., from an S3 or GCS backend). This would create a powerful, direct link between your infrastructure-as-code and application configuration.
+- **HashiCorp Vault Integration**: Support for `vault:` lookups to fetch secrets from a HashiCorp Vault instance, which would make `envars` more useful in on-premise or multi-cloud environments.
+- **Local File Content Lookup**: A `file:` prefix to read the content of a local file directly into a variable. This would be useful for loading certificates, keys, or other configuration files that are not suitable for storing in `envars.yml` itself.
+
 ## Development
 
 To set up the development environment, clone the repository and install the dependencies using `uv`:
