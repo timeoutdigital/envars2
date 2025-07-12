@@ -132,6 +132,7 @@ environment_variables:
 
 Here are some ideas for future enhancements that could make `envars` even more powerful:
 
+- **Add other Cloud Providers**: Azure etc
 - **AWS Secrets Manager Integration**: Add a new `aws_secrets_manager:` prefix to fetch secrets directly from AWS Secrets Manager, which is a more feature-rich service for managing sensitive data than SSM Parameter Store.
 - **Terraform State File Lookup**: Implement a `terraform_state:` prefix to read outputs directly from a Terraform state file (e.g., from an S3 or GCS backend). This would create a powerful, direct link between your infrastructure-as-code and application configuration.
 - **HashiCorp Vault Integration**: Support for `vault:` lookups to fetch secrets from a HashiCorp Vault instance, which would make `envars` more useful in on-premise or multi-cloud environments.
