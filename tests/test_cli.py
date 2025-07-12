@@ -930,6 +930,20 @@ environment_variables:
     assert "Variable 'MY_VAR' uses 'gcp_secret_manager:' with an AWS KMS key." in result.stderr
 
 
+def test_validate_mismatched_remote_variable_cf(tmp_path):
+    initial_content = """
+configuration:
+  kms_key: "projects/my-gcp-project/locations/us-central1/keyRings/my-key-ring/cryptoKeys/my-key"
+environment_variables:
+  MY_VAR:
+    default: "cloudformation_export:my-export"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "validate"])
+    assert result.exit_code == 1
+    assert "uses 'parameter_store:' or 'cloudformation_export:' with a GCP KMS key." in result.stderr.replace("\n", "")
+
+
 def test_load_from_yaml_invalid_structure(tmp_path):
     initial_content = """
 configuration:

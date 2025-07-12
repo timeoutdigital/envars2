@@ -5,6 +5,7 @@ from collections import deque
 import yaml
 from jinja2 import Environment, meta
 
+from .aws_cloudformation import CloudFormationExports
 from .aws_kms import AWSKMSAgent
 from .aws_ssm import SSMParameterStore
 from .cloud_utils import get_default_location_name
@@ -395,6 +396,7 @@ def _get_resolved_variables(
     # Parameter Store substitution
     ssm_store = SSMParameterStore()
     gcp_secret_manager = GCPSecretManager()
+    cf_exports = CloudFormationExports()
     for var_name, value in resolved_vars.items():
         if isinstance(value, str):
             if value.startswith("parameter_store:"):
@@ -409,6 +411,12 @@ def _get_resolved_variables(
                 if secret_value is None:
                     raise ValueError(f"Secret '{secret_name}' not found in GCP Secret Manager.")
                 resolved_vars[var_name] = secret_value
+            elif value.startswith("cloudformation_export:"):
+                export_name = value.split(":", 1)[1]
+                export_value = cf_exports.get_export_value(export_name)
+                if export_value is None:
+                    raise ValueError(f"Export '{export_name}' not found in CloudFormation exports.")
+                resolved_vars[var_name] = export_value
 
     return resolved_vars
 

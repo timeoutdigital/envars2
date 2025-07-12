@@ -199,8 +199,12 @@ def add_env_var(
         if manager.cloud_provider == "aws" and var_value.startswith("gcp_secret_manager:"):
             error_console.print("[bold red]Error:[/] Cannot use 'gcp_secret_manager:' with an AWS KMS key.")
             raise typer.Exit(code=1)
-        if manager.cloud_provider == "gcp" and var_value.startswith("parameter_store:"):
-            error_console.print("[bold red]Error:[/] Cannot use 'parameter_store:' with a GCP KMS key.")
+        if manager.cloud_provider == "gcp" and (
+            var_value.startswith("parameter_store:") or var_value.startswith("cloudformation_export:")
+        ):
+            error_console.print(
+                "[bold red]Error:[/] Cannot use 'parameter_store:' or 'cloudformation_export:' with a GCP KMS key."
+            )
             raise typer.Exit(code=1)
 
     # Ensure variable exists
@@ -691,8 +695,13 @@ def validate_command(
             if isinstance(vv.value, str):
                 if manager.cloud_provider == "aws" and vv.value.startswith("gcp_secret_manager:"):
                     errors.append(f"Variable '{vv.variable_name}' uses 'gcp_secret_manager:' with an AWS KMS key.")
-                if manager.cloud_provider == "gcp" and vv.value.startswith("parameter_store:"):
-                    errors.append(f"Variable '{vv.variable_name}' uses 'parameter_store:' with a GCP KMS key.")
+                if manager.cloud_provider == "gcp" and (
+                    vv.value.startswith("parameter_store:") or vv.value.startswith("cloudformation_export:")
+                ):
+                    errors.append(
+                        f"Variable '{vv.variable_name}' uses 'parameter_store:' or 'cloudformation_export:' with a GCP"
+                        " KMS key."
+                    )
 
     # Check for circular dependencies
     all_vars = {}

@@ -1,7 +1,15 @@
+from unittest.mock import MagicMock
+
 import pytest
 import yaml
 
-from src.envars.main import DuplicateKeyError, SafeLoaderWithDuplicatesCheck, load_from_yaml, write_envars_yml
+from src.envars.main import (
+    DuplicateKeyError,
+    SafeLoaderWithDuplicatesCheck,
+    _get_resolved_variables,
+    load_from_yaml,
+    write_envars_yml,
+)
 from src.envars.models import Environment, Location, Variable, VariableManager, VariableValue
 
 
@@ -297,3 +305,31 @@ key2: value2
     with open(file_path) as f:
         data = yaml.load(f, Loader=SafeLoaderWithDuplicatesCheck)
     assert data == {"key1": "value1", "key2": "value2"}
+
+
+def test_resolve_cloudformation_export(tmp_path, monkeypatch):
+    """Test that cloudformation_export: values are resolved correctly."""
+    yaml_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - aws: "12345"
+
+environment_variables:
+  MY_EXPORT:
+    default: "cloudformation_export:my-cf-export"
+"""
+    file_path = create_yaml_file(tmp_path, yaml_content)
+    manager = load_from_yaml(file_path)
+
+    # Mock the CloudFormationExports class
+    mock_cf_exports = MagicMock()
+    mock_cf_exports.get_export_value.return_value = "my-cf-export-value"
+    monkeypatch.setattr("src.envars.main.CloudFormationExports", lambda: mock_cf_exports)
+
+    resolved_vars = _get_resolved_variables(manager, loc="aws", env="dev", decrypt=True)
+
+    assert "MY_EXPORT" in resolved_vars
+    assert resolved_vars["MY_EXPORT"] == "my-cf-export-value"
+    mock_cf_exports.get_export_value.assert_called_once_with("my-cf-export")

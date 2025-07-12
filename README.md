@@ -1,6 +1,6 @@
 # Envars: Application Config as Code
 
-[![PyPI version](https://badge.fury.io/py/envars.svg)](https://badge.fury.io/py/envars)
+[![PyPI version](https://badge.fury.io/py/envars2.svg)](https://badge.fury.io/py/envars2)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Envars** is a powerful command-line tool for managing your application's configuration as code. It provides a simple yet flexible way to handle environment variables across different applications, environments, and cloud providers, ensuring that your configuration is always consistent, secure, and easy to manage.
@@ -14,8 +14,9 @@ Stop juggling `.env` files and start treating your configuration like code.
 - **Secure Secret Management**: Encrypt and decrypt sensitive values using [AWS KMS](https://aws.amazon.com/kms/) or [Google Cloud KMS](https://cloud.google.com/kms).
 - **Templating with Jinja2**: Resolve variable values dynamically using the power of Jinja2 templating.
 - **Value Validation**: Ensure the integrity of your configuration with optional regex-based validation for variable values.
-- **Cloud Secret Manager Integration**: Fetch secrets on-the-fly from [AWS SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html) or [GCP Secret Manager](https://cloud.google.com/secret-manager).
+- **Cloud Secret Manager Integration**: Fetch secrets on-the-fly from [AWS SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html), [GCP Secret Manager](https://cloud.google.com/secret-manager), or [AWS CloudFormation Exports](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html).
 - **Powerful CLI**: A rich set of commands for initializing, adding, outputting, validating, and executing your configuration.
+- **Can be used as a library**: in other python apps
 
 ## Installation
 
@@ -120,6 +121,11 @@ environment_variables:
     description: "A secret stored in GCP Secret Manager."
     prod:
       gcp: "gcp_secret_manager:projects/my-gcp-project/secrets/my-secret/versions/latest"
+
+  CF_EXPORT:
+    description: "A value from CloudFormation exports."
+    prod:
+      aws: "cloudformation_export:my-export-name"
 ```
 
 ## Development

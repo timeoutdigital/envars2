@@ -26,6 +26,7 @@ graph TD
     A -- "Reads/writes envars.yml" --> C(File System)
     A -- "Fetches secrets from" --> D(AWS Parameter Store)
     A -- "Fetches secrets from" --> E(GCP Secret Manager)
+    A -- "Fetches values from" --> H(AWS CloudFormation)
     A -- "Encrypts/decrypts secrets with" --> F(AWS KMS)
     A -- "Encrypts/decrypts secrets with" --> G(GCP KMS)
 ```
