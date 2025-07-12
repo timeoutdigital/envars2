@@ -1,4 +1,4 @@
-# Envars: Application Config as Code
+# Envars: Application Config as Code test
 
 [![PyPI version](https://badge.fury.io/py/envars2.svg)](https://badge.fury.io/py/envars2)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
