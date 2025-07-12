@@ -22,8 +22,10 @@ jobs:
     - name: Install dependencies
       run: |
         pip install uv
-        uv pip install -r uv.lock
+        uv sync
     - name: Test with pytest
+      env:
+        AWS_DEFAULT_REGION: us-east-1
       run: uv run pytest
 
   pre-commit:
