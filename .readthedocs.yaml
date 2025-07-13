@@ -14,9 +14,10 @@ build:
       # Install project dependencies using uv
       - pip install uv
       - uv sync --only-group docs
-    build:
-      # Custom build command for MkDocs
-      - uv run mkdocs build --clean --site-dir $READTHEDOCS_OUTPUT/html --config-file mkdocs.yml --strict
+  # The build.commands key is used to specify the custom build process.
+  # This overrides the default mkdocs build command.
+  commands:
+    - uv run mkdocs build --clean --site-dir $READTHEDOCS_OUTPUT/html --config-file mkdocs.yml --strict
 
 # Optionally build PDF and ePub formats from the HTML output.
 formats:
