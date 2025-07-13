@@ -14,13 +14,11 @@ build:
       # Install project dependencies using uv
       - pip install uv
       - uv sync --only-group docs
+    build:
+      # Custom build command for MkDocs
+      - uv run mkdocs build --clean --site-dir $READTHEDOCS_OUTPUT/html --config-file mkdocs.yml --strict
 
-# Build the documentation with MkDocs.
-mkdocs:
-  configuration: mkdocs.yml
-  fail_on_warning: true
-
-# Optionally build PDF and ePub formats.
+# Optionally build PDF and ePub formats from the HTML output.
 formats:
   - pdf
   - epub
