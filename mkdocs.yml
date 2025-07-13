@@ -1,54 +1,27 @@
-site_name: Envars2
+site_name: Envars
+site_description: Application Config As Code
+
 theme:
   name: material
   features:
     - navigation.tabs
-    - navigation.sections
-    - toc.integrate
     - navigation.top
-    - search.suggest
-    - search.highlight
-    - content.tabs.link
-    - content.code.annotation
-    - content.code.copy
-  language: en
-  palette:
-    - scheme: default
-      toggle:
-        icon: material/weather-night
-        name: Switch to dark mode
-    - scheme: slate
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to light mode
-
-plugins:
-  - search
 
 nav:
   - Home: index.md
-  - Usage as a Library: USAGE_AS_LIBRARY.md
-  - Architecture: ARCHITECTURE.md
-  - Analysis: ANALYSIS.md
-  - Assessment: ASSESSMENT.md
-  - Key Rotation: KEY_ROTATION.md
-  - Running with Docker: RUNNING_WITH_DOCKER.md
-  - Security: SECURITY.md
-
-
-extra:
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/your-username/envars2
-
-markdown_extensions:
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
-  - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.mark
-  - attr_list
-  - md_in_html
+  - Getting Started: getting-started.md
+  - User Guide:
+    - Configuration File: user-guide/01-configuration-file.md
+    - CLI Commands: user-guide/02-cli-commands.md
+    - Secret Management: user-guide/03-secret-management.md
+    - Variable Templating: user-guide/04-variable-templating.md
+    - Dynamic Variables: user-guide/05-dynamic-variables.md
+    - Validation: user-guide/06-validation.md
+  - API Reference:
+    - Library Usage: api-reference/index.md
+    - Data Models: api-reference/models.md
+  - Project:
+    - Contributing: project/contributing.md
+    - Security: project/security.md
+    - Changelog: project/changelog.md
+    - License: project/license.md

@@ -1,0 +1,21 @@
+configuration:
+  app: my-app
+  kms_key: projects/keith-gemini-cli-test-01/locations/europe-west2/keyRings/ktest-key-ring/cryptoKeys/ktest-key
+  environments:
+  - prod
+  - staging
+  locations:
+  - master: 'tog-staging-dt-prc'
+  - sandbox: 'keith-gemini-cli-test-01'
+
+environment_variables:
+  ABC:
+    default: 123dsfds
+
+  NEW_VAR:
+    default: !secret |-
+      CiQAuc/2GjeMFoc/romtrVbiQaYmIN0fJme1VfjrPzHSVrqNvDwSLABz00+Mb9KaFly2dtHu0SaoV9BUb/xfX5iN61RiDJvUfExkU+avgaYajXUX
+
+  VAR:
+    default: !secret |-
+      CiQAuc/2GkSMw5gE5lzhsh0PtE7dvpa6hCr7+dk0M9JremGPWhgSLABz00+M5CMbh94NUi3vmhNRQ0lpSrVcppaj9afXjRsLR1PIRrwK1SjhfasG
