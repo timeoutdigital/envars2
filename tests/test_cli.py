@@ -272,7 +272,7 @@ environment_variables:
 
 
 @patch("os.execvpe")
-def test_exec_command_with_stage_env_var(mock_execvpe, tmp_path):
+def test_exec_command_with_envars_env_var(mock_execvpe, tmp_path):
     initial_content = """
 configuration:
   environments:
@@ -287,7 +287,7 @@ environment_variables:
 """
     file_path = create_envars_file(tmp_path, initial_content)
 
-    with patch.dict("os.environ", {"STAGE": "dev"}):
+    with patch.dict("os.environ", {"ENVARS_ENV": "dev"}):
         result = runner.invoke(
             app,
             [
@@ -416,8 +416,8 @@ environment_variables:
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout
 
-    # Test with STAGE environment variable
-    with patch.dict("os.environ", {"STAGE": "dev"}):
+    # Test with ENVARS_ENV environment variable
+    with patch.dict("os.environ", {"ENVARS_ENV": "dev"}):
         result = runner.invoke(app, ["--file", file_path, "output", "--loc", "my_loc"])
     assert result.exit_code == 0
     assert "MY_VAR=dev_loc_value" in result.stdout

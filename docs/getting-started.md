@@ -72,7 +72,7 @@ The value will be encrypted and stored in the `envars.yml` file with a `!secret`
 `envars` supports Jinja2 templating. This is great for creating dynamic values. Let's add a `DATABASE_URL` that changes based on the environment.
 
 ```bash
-envars add DATABASE_URL="postgres://user:pass@db-{{ env.get('STAGE') }}.example.com/mydb"
+envars add DATABASE_URL="postgres://user:pass@db-{{ env.get('ENVARS_ENV') }}.example.com/mydb"
 ```
 
 ## 4. View Your Configuration

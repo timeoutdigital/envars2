@@ -53,24 +53,24 @@ FRONTEND_URL=https://app.prod.example.com
 
 You can also access the shell's environment variables from within your templates using the `env` object. This is useful for incorporating system-level configuration.
 
-### Example: Using `STAGE` and `PORT`
+### Example: Using `ENVARS_ENV` and `PORT`
 
 ```yaml
 # In envars.yml
 environment_variables:
-  # Use the STAGE env var if it exists, otherwise default to 'dev'
+  # Use the ENVARS_ENV env var if it exists, otherwise default to 'dev'
   APP_ENV:
-    default: "{{ env.get('STAGE', 'dev') }}"
+    default: "{{ env.get('ENVARS_ENV', 'dev') }}"
 
   # Use the PORT env var if it exists, otherwise default to 8080
   LISTEN_PORT:
     default: "{{ env.get('PORT', '8080') }}"
 ```
 
-If you run `envars` in a shell where `STAGE=staging` and `PORT=3000`:
+If you run `envars` in a shell where `ENVARS_ENV=staging` and `PORT=3000`:
 
 ```bash
-$ STAGE=staging PORT=3000 envars output --env dev --loc any-loc
+$ ENVARS_ENV=staging PORT=3000 envars output --env dev --loc any-loc
 APP_ENV=staging
 LISTEN_PORT=3000
 ```

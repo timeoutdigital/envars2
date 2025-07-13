@@ -352,9 +352,9 @@ def _get_resolved_variables(
 ) -> dict[str, str | Secret]:
     """Helper function to get all resolved variables for a given context."""
     if env is None:
-        env = os.environ.get("STAGE")
+        env = os.environ.get("ENVARS_ENV")
         if env is None:
-            raise ValueError("The --env option is required if the STAGE environment variable is not set.")
+            raise ValueError("The --env option is required if the ENVARS_ENV environment variable is not set.")
 
     if env not in manager.environments:
         raise ValueError(f"Environment '{env}' not found in configuration.")

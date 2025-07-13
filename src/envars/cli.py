@@ -435,7 +435,7 @@ def exec_command(
     ctx: typer.Context,
     loc: str | None = typer.Option(None, "--loc", "-l", help="Location for context."),
     env: str | None = typer.Option(
-        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
+        None, "--env", "-e", help="Environment for context. Defaults to the ENVARS_ENV environment variable."
     ),
 ):
     """Execute a command with the environment populated from the specified context.
@@ -485,7 +485,7 @@ def set_systemd_env(
     ctx: typer.Context,
     loc: str | None = typer.Option(None, "--loc", "-l", help="Location for context."),
     env: str | None = typer.Option(
-        None, "--env", "-e", help="Environment for context. Defaults to the STAGE environment variable."
+        None, "--env", "-e", help="Environment for context. Defaults to the ENVARS_ENV environment variable."
     ),
     decrypt: bool = typer.Option(True, "--decrypt", "-d", help="Decrypt secret values."),
 ):

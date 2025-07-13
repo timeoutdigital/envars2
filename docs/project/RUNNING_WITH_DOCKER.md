@@ -32,7 +32,7 @@ COPY . .
 RUN uv sync --all-extras
 
 # Set the entrypoint to use envars2
-ENTRYPOINT ["envars2", "exec", "--env", "$STAGE", "--loc", "$LOCATION", "--"]
+ENTRYPOINT ["envars2", "exec", "--env", "$ENVARS_ENV", "--loc", "$LOCATION", "--"]
 
 # The command to run your application
 CMD ["python", "my_app.py"]
@@ -40,17 +40,17 @@ CMD ["python", "my_app.py"]
 
 ### How to Use It
 
-When you run the Docker container, you would pass the `STAGE` and `LOCATION` as environment variables:
+When you run the Docker container, you would pass the `ENVARS_ENV` and `LOCATION` as environment variables:
 
 ```bash
-docker run -e STAGE=prod -e LOCATION=aws my-app-image
+docker run -e ENVARS_ENV=prod -e LOCATION=aws my-app-image
 ```
 
 ### Advantages
 
 *   **Simple and Clean:** This approach is very clean and easy to understand. The `Dockerfile` clearly shows how the environment is being set up.
 *   **Secure:** Secrets are only decrypted at runtime, inside the container. They are never stored in plaintext on the host machine or in an intermediate file.
-*   **Portable:** The Docker image is self-contained and can be run in any environment, as long as the `STAGE` and `LOCATION` environment variables are provided.
+*   **Portable:** The Docker image is self-contained and can be run in any environment, as long as the `ENVARS_ENV` and `LOCATION` environment variables are provided.
 
 ## Approach 2: The "Env-File" Method with Process Substitution (Recommended for Host-Based Execution)
 

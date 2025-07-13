@@ -41,7 +41,7 @@ environment_variables:
 
   DATABASE_URL:
     description: "The connection string for the database."
-    default: "postgres://user:pass@db-{{ env.get('STAGE') }}.example.com/mydb"
+    default: "postgres://user:pass@db-{{ env.get('ENVARS_ENV') }}.example.com/mydb"
 ```
 
 With this file, you can easily export the variables for a specific context:
