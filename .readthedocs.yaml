@@ -1,0 +1,26 @@
+# .readthedocs.yaml
+# Read the Docs configuration file for MkDocs.
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details.
+
+version: 2
+
+# Set the version of Python and other tools you might need.
+build:
+  os: ubuntu-24.04
+  tools:
+    python: "3.13"
+  jobs:
+    pre_build:
+      # Install project dependencies using uv
+      - pip install uv
+      - uv sync --only-group docs
+
+# Build the documentation with MkDocs.
+mkdocs:
+  configuration: mkdocs.yml
+  fail_on_warning: true
+
+# Optionally build PDF and ePub formats.
+formats:
+  - pdf
+  - epub

@@ -192,12 +192,14 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "mkdocs" },
-    { name = "mkdocs-material" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
+]
+docs = [
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
 ]
 
 [package.metadata]
@@ -213,12 +215,14 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mkdocs", specifier = ">=1.6.0" },
-    { name = "mkdocs-material", specifier = ">=9.5.29" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "ruff", specifier = ">=0.12.2" },
     { name = "ty", specifier = ">=0.0.1a13" },
+]
+docs = [
+    { name = "mkdocs", specifier = ">=1.6.0" },
+    { name = "mkdocs-material", specifier = ">=9.5.29" },
 ]
 
 [[package]]
