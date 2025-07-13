@@ -1,6 +1,7 @@
 # Envars: Application Config as Code
 
 [![PyPI version](https://badge.fury.io/py/envars2.svg)](https://badge.fury.io/py/envars2)
+[![Documentation Status](https://readthedocs.org/projects/envars/badge/?version=latest)](https://envars.readthedocs.io/en/latest/?badge=latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Envars** is a powerful command-line tool for managing your application's configuration as code. It provides a simple yet flexible way to handle environment variables across different applications, environments, and cloud providers, ensuring that your configuration is always consistent, secure, and easy to manage.
