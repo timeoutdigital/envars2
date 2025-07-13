@@ -6,6 +6,8 @@
 
 **Envars** is a powerful command-line tool for managing your application's configuration as code. It provides a simple yet flexible way to handle environment variables across different applications, environments, and cloud providers, ensuring that your configuration is always consistent, secure, and easy to manage.
 
+**[View the full documentation on Read the Docs.](https://envars.readthedocs.io/en/latest/)**
+
 Stop juggling `.env` files and start treating your configuration like code.
 
 ## Key Features
