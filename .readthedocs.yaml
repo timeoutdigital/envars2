@@ -9,14 +9,14 @@ build:
   os: ubuntu-24.04
   tools:
     python: "3.13"
-  jobs:
-    pre_build:
-      # Install project dependencies using uv
-      - pip install uv
-      - uv sync --only-group docs
-  # The build.commands key is used to specify the custom build process.
-  # This overrides the default mkdocs build command.
+
+  # The build.commands key is used to specify the full custom build process.
+  # All steps, including installation, must be listed here.
   commands:
+    # Install project dependencies using uv
+    - pip install uv
+    - uv sync --only-group docs
+    # Custom build command for MkDocs
     - uv run mkdocs build --clean --site-dir $READTHEDOCS_OUTPUT/html --config-file mkdocs.yml --strict
 
 # Optionally build PDF and ePub formats from the HTML output.
