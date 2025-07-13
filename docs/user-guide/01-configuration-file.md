@@ -109,14 +109,28 @@ environment_variables:
 
 #### A Secret Variable
 
-Use the `!secret` tag to mark a value as a secret. It will be encrypted before being saved.
+To handle secrets, `envars` uses the `!secret` YAML tag. This tag indicates that the value is encrypted.
+
+**Important:** You should not manually write plaintext secrets into your `envars.yml` file. The correct way to add a secret is with the `envars add` command and the `--secret` flag.
+
+```bash
+$ envars add API_KEY=super-secret-value --secret --env prod
+```
+
+When you run this command, `envars` will:
+1.  Encrypt "super-secret-value" using the configured KMS key.
+2.  Save the *encrypted ciphertext*, tagged with `!secret`, into your `envars.yml` file.
+
+The resulting `envars.yml` will look something like this:
 
 ```yaml
 environment_variables:
   API_KEY:
     description: "API key for the external service."
-    prod: !secret "super-secret-value"
+    prod: !secret "CiD...encrypted blob...=="
 ```
+
+The `!secret` tag tells `envars` that this value needs to be decrypted when you use commands like `envars output` or `envars exec`.
 
 #### A Variable with Location and Environment Overrides
 
