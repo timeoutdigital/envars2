@@ -30,6 +30,35 @@ console = Console()
 error_console = Console(stderr=True)
 
 
+def _resolve_and_print_context(
+    ctx: typer.Context, loc: str | None, env: str | None
+) -> tuple[VariableManager, str, str | None]:
+    """Resolves location and environment, printing debug info if verbose."""
+    manager = ctx.obj
+    verbose = ctx.meta.get("verbose", False)
+
+    resolved_loc = loc
+    if resolved_loc is None:
+        resolved_loc = get_default_location_name(manager)
+        if resolved_loc is None:
+            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
+            raise typer.Exit(code=1)
+        if verbose:
+            console.print(f"[dim]DEBUG: Auto-detected location: '{resolved_loc}'[/dim]")
+    elif verbose:
+        console.print(f"[dim]DEBUG: Using specified location: '{resolved_loc}'[/dim]")
+
+    final_env = env
+    if final_env is None:
+        final_env = os.environ.get("ENVARS_ENV")
+        if verbose and final_env is not None:
+            console.print(f"[dim]DEBUG: Using environment from ENVARS_ENV: '{final_env}'[/dim]")
+    elif verbose:
+        console.print(f"[dim]DEBUG: Using specified environment: '{final_env}'[/dim]")
+
+    return manager, resolved_loc, env
+
+
 @app.command(name="init")
 def init_envars(
     ctx: typer.Context,
@@ -106,7 +135,11 @@ def _check_all_contexts_for_circular_dependencies(manager: VariableManager):
 
 @app.callback(invoke_without_command=True)
 def main(
-    ctx: typer.Context, file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file.")
+    ctx: typer.Context,
+    file_path: str = typer.Option("envars.yml", "--file", "-f", help="Path to the envars.yml file."),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output, printing detected location and environment."
+    ),
 ):
     if ctx.invoked_subcommand is None:
         welcome_message = (
@@ -124,6 +157,8 @@ def main(
         )
         console.print(panel)
         return
+
+    ctx.meta["verbose"] = verbose
 
     if ctx.invoked_subcommand == "init":
         return
@@ -349,12 +384,7 @@ def output_command(
     format: str = typer.Option("dotenv", "--format", help="Output format (dotenv, yaml, json)."),
 ):
     """Prints the resolved variables for a given context."""
-    manager = ctx.obj
-    if loc is None:
-        loc = get_default_location_name(manager)
-        if loc is None:
-            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
-            raise typer.Exit(code=1)
+    manager, loc, env = _resolve_and_print_context(ctx, loc, env)
 
     try:
         resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
@@ -449,12 +479,7 @@ def exec_command(
     Example:
       envars2 exec --env dev --loc aws -- my_script.py --some-arg
     """
-    manager = ctx.obj
-    if loc is None:
-        loc = get_default_location_name(manager)
-        if loc is None:
-            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
-            raise typer.Exit(code=1)
+    manager, loc, env = _resolve_and_print_context(ctx, loc, env)
     try:
         resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
     except ValueError as e:
@@ -490,12 +515,7 @@ def set_systemd_env(
     decrypt: bool = typer.Option(True, "--decrypt", "-d", help="Decrypt secret values."),
 ):
     """Sets the environment variables for a systemd user service."""
-    manager = ctx.obj
-    if loc is None:
-        loc = get_default_location_name(manager)
-        if loc is None:
-            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
-            raise typer.Exit(code=1)
+    manager, loc, env = _resolve_and_print_context(ctx, loc, env)
     try:
         resolved_vars = _get_resolved_variables(manager, loc, env, decrypt)
     except ValueError as e:
