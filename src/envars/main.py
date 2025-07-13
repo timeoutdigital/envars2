@@ -3,7 +3,8 @@ import sys
 from collections import deque
 
 import yaml
-from jinja2 import Environment, meta
+from jinja2 import Environment, StrictUndefined, meta
+from jinja2.exceptions import UndefinedError
 
 from .aws_cloudformation import CloudFormationExports
 from .aws_kms import AWSKMSAgent
@@ -377,7 +378,7 @@ def _get_resolved_variables(
 
     # Template substitution with Jinja2
     sorted_order = _check_for_circular_dependencies(resolved_vars)
-    jinja_env = Environment(autoescape=True)
+    jinja_env = Environment(autoescape=True, undefined=StrictUndefined)
     rendered = {}
     for var_name in sorted_order:
         value = resolved_vars[var_name]
@@ -387,8 +388,8 @@ def _get_resolved_variables(
                 context = {"env": os.environ}
                 context.update(rendered)
                 rendered[var_name] = template.render(context)
-            except Exception:
-                rendered[var_name] = value
+            except UndefinedError as e:
+                raise ValueError(f"Error rendering template for variable '{var_name}': {e}") from e
         else:
             rendered[var_name] = value
     resolved_vars = rendered

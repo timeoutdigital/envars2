@@ -333,3 +333,59 @@ environment_variables:
     assert "MY_EXPORT" in resolved_vars
     assert resolved_vars["MY_EXPORT"] == "my-cf-export-value"
     mock_cf_exports.get_export_value.assert_called_once_with("my-cf-export")
+
+
+def test_resolve_jinja2_template(tmp_path, monkeypatch):
+    """Test that Jinja2 templates are resolved correctly."""
+    yaml_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - local: "local"
+
+environment_variables:
+  GREETING:
+    default: "Hello"
+  NAME:
+    default: "World"
+  MESSAGE:
+    default: "{{ GREETING }}, {{ NAME }}!"
+  SHELL_VAR:
+    default: "Value is: {{ env.get('MY_SHELL_VAR', 'default') }}"
+"""
+    file_path = create_yaml_file(tmp_path, yaml_content)
+    manager = load_from_yaml(file_path)
+
+    # Test with shell variable set
+    monkeypatch.setenv("MY_SHELL_VAR", "from_shell")
+    resolved_vars = _get_resolved_variables(manager, loc="local", env="dev", decrypt=True)
+    assert resolved_vars["MESSAGE"] == "Hello, World!"
+    assert resolved_vars["SHELL_VAR"] == "Value is: from_shell"
+
+    # Test with shell variable not set (should use default)
+    monkeypatch.delenv("MY_SHELL_VAR", raising=False)
+    resolved_vars = _get_resolved_variables(manager, loc="local", env="dev", decrypt=True)
+    assert resolved_vars["SHELL_VAR"] == "Value is: default"
+
+
+def test_resolve_template_with_undefined_variable_raises_error(tmp_path):
+    """Test that a template with an undefined variable raises a ValueError."""
+    yaml_content = """
+configuration:
+  environments:
+    - dev
+  locations:
+    - local: "local"
+
+environment_variables:
+  MESSAGE:
+    default: "Hello, {{ UNDEFINED_VAR }}"
+"""
+    file_path = create_yaml_file(tmp_path, yaml_content)
+    manager = load_from_yaml(file_path)
+
+    with pytest.raises(
+        ValueError, match="Error rendering template for variable 'MESSAGE': 'UNDEFINED_VAR' is undefined"
+    ):
+        _get_resolved_variables(manager, loc="local", env="dev", decrypt=True)
