@@ -697,60 +697,108 @@ def validate_command(
 ):
     """Validates the envars.yml file for logical consistency."""
     manager = ctx.obj
+    verbose = ctx.meta.get("verbose", False)
     errors = []
 
-    # Check that all variable values correspond to a defined variable
+    if verbose:
+        console.print("[dim]DEBUG: Running validation checks...[/dim]")
+
+    # Check 1: All variable values correspond to a defined variable
+    value_errors = []
     defined_variable_names = set(manager.variables.keys())
     for vv in manager.variable_values:
         if vv.variable_name not in defined_variable_names:
-            errors.append(f"Variable '{vv.variable_name}' has values but is not defined as a top-level variable.")
+            value_errors.append(f"Variable '{vv.variable_name}' has values but is not defined as a top-level variable.")
+    if not value_errors:
+        if verbose:
+            console.print("[dim]DEBUG: [PASS] All variable values have a corresponding definition.[/dim]")
+    else:
+        errors.extend(value_errors)
 
-    # Check that all variable names are uppercase
+    # Check 2: All variable names are uppercase
+    case_errors = []
     for var_name in manager.variables:
         if var_name.upper() != var_name:
-            errors.append(f"Variable name '{var_name}' must be uppercase.")
+            case_errors.append(f"Variable name '{var_name}' must be uppercase.")
+    if not case_errors:
+        if verbose:
+            console.print("[dim]DEBUG: [PASS] All variable names are uppercase.[/dim]")
+    else:
+        errors.extend(case_errors)
 
-    # Check for missing descriptions if mandatory
+    # Check 3: Missing descriptions if mandatory
     if manager.description_mandatory:
+        desc_errors = []
         for var_name, var in manager.variables.items():
             if not var.description:
-                errors.append(f"Variable '{var_name}' is missing a description.")
+                desc_errors.append(f"Variable '{var_name}' is missing a description.")
+        if not desc_errors:
+            if verbose:
+                console.print("[dim]DEBUG: [PASS] All mandatory descriptions are present.[/dim]")
+        else:
+            errors.extend(desc_errors)
+    elif verbose:
+        console.print("[dim]DEBUG: [SKIP] Description mandatory check is disabled.[/dim]")
 
-    # Check for default secrets
+    # Check 4: Default secrets
     if not ignore_default_secrets:
+        secret_errors = []
         for vv in manager.variable_values:
             if isinstance(vv.value, Secret) and vv.scope_type == "DEFAULT":
-                errors.append(f"Variable '{vv.variable_name}' is a secret and cannot have a default value.")
+                secret_errors.append(f"Variable '{vv.variable_name}' is a secret and cannot have a default value.")
+        if not secret_errors:
+            if verbose:
+                console.print("[dim]DEBUG: [PASS] No default secrets found.[/dim]")
+        else:
+            errors.extend(secret_errors)
+    elif verbose:
+        console.print("[dim]DEBUG: [SKIP] Default secret check is ignored.[/dim]")
 
-    # Check for mismatched remote variables
+    # Check 5: Mismatched remote variables
     if manager.cloud_provider:
+        remote_errors = []
         for vv in manager.variable_values:
             if isinstance(vv.value, str):
                 if manager.cloud_provider == "aws" and vv.value.startswith("gcp_secret_manager:"):
-                    errors.append(f"Variable '{vv.variable_name}' uses 'gcp_secret_manager:' with an AWS KMS key.")
+                    remote_errors.append(
+                        f"Variable '{vv.variable_name}' uses 'gcp_secret_manager:' with an AWS KMS key."
+                    )
                 if manager.cloud_provider == "gcp" and (
                     vv.value.startswith("parameter_store:") or vv.value.startswith("cloudformation_export:")
                 ):
-                    errors.append(
+                    remote_errors.append(
                         f"Variable '{vv.variable_name}' uses 'parameter_store:' or 'cloudformation_export:' with a GCP"
                         " KMS key."
                     )
+        if not remote_errors:
+            if verbose:
+                console.print("[dim]DEBUG: [PASS] No mismatched remote variables found.[/dim]")
+        else:
+            errors.extend(remote_errors)
+    elif verbose:
+        console.print("[dim]DEBUG: [SKIP] Remote variable check (no cloud provider configured).[/dim]")
 
-    # Check for circular dependencies
-    all_vars = {}
-    for vv in manager.variable_values:
-        all_vars[vv.variable_name] = vv.value
+    # Check 6: Circular dependencies
+    all_vars = {vv.variable_name: vv.value for vv in manager.variable_values}
     try:
         _check_for_circular_dependencies(all_vars)
+        if verbose:
+            console.print("[dim]DEBUG: [PASS] No circular dependencies detected.[/dim]")
     except ValueError as e:
         errors.append(str(e))
 
-    # Check that all variable values match their validation rules
+    # Check 7: All variable values match their validation rules
+    validation_errors = []
     for vv in manager.variable_values:
         try:
             _validate_variable_value(manager, vv.variable_name, str(vv.value))
         except ValueError as e:
-            errors.append(str(e))
+            validation_errors.append(str(e))
+    if not validation_errors:
+        if verbose:
+            console.print("[dim]DEBUG: [PASS] All variable values passed validation rules.[/dim]")
+    else:
+        errors.extend(validation_errors)
 
     if errors:
         error_console.print("[bold red]Validation failed with the following errors:[/]")
