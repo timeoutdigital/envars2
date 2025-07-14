@@ -34,6 +34,8 @@ def _resolve_and_print_context(
     ctx: typer.Context, loc: str | None, env: str | None
 ) -> tuple[VariableManager, str, str | None]:
     """Resolves location and environment, printing debug info if verbose."""
+    if env:
+        os.environ["ENVARS_ENV"] = env
     manager = ctx.obj
     verbose = ctx.meta.get("verbose", False)
 
