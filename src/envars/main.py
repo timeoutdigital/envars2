@@ -301,10 +301,10 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
 
     try:
         # Determine KMS provider and decrypt
-        if manager.kms_key.startswith("arn:aws:kms:"):
+        if manager.cloud_provider == "aws":
             agent = AWSKMSAgent()
             return agent.decrypt(str(vv.value), encryption_context)
-        elif manager.kms_key.startswith("projects/"):
+        elif manager.cloud_provider == "gcp":
             agent = GCPKMSAgent()
             key_id = manager.kms_key
             return agent.decrypt(str(vv.value), key_id, encryption_context)
@@ -394,30 +394,34 @@ def _get_resolved_variables(
             rendered[var_name] = value
     resolved_vars = rendered
 
-    # Parameter Store substitution
-    ssm_store = SSMParameterStore()
-    gcp_secret_manager = GCPSecretManager()
-    cf_exports = CloudFormationExports()
-    for var_name, value in resolved_vars.items():
-        if isinstance(value, str):
-            if value.startswith("parameter_store:"):
-                param_name = value.split(":", 1)[1]
-                param_value = ssm_store.get_parameter(param_name)
-                if param_value is None:
-                    raise ValueError(f"Parameter '{param_name}' not found in Parameter Store.")
-                resolved_vars[var_name] = param_value
-            elif value.startswith("gcp_secret_manager:"):
-                secret_name = value.split(":", 1)[1]
-                secret_value = gcp_secret_manager.access_secret_version(secret_name)
-                if secret_value is None:
-                    raise ValueError(f"Secret '{secret_name}' not found in GCP Secret Manager.")
-                resolved_vars[var_name] = secret_value
-            elif value.startswith("cloudformation_export:"):
-                export_name = value.split(":", 1)[1]
-                export_value = cf_exports.get_export_value(export_name)
-                if export_value is None:
-                    raise ValueError(f"Export '{export_name}' not found in CloudFormation exports.")
-                resolved_vars[var_name] = export_value
+    # Parameter Store and Secret Manager substitution
+    if manager.cloud_provider == "aws":
+        ssm_store = SSMParameterStore()
+        cf_exports = CloudFormationExports()
+        for var_name, value in resolved_vars.items():
+            if isinstance(value, str):
+                if value.startswith("parameter_store:"):
+                    param_name = value.split(":", 1)[1]
+                    param_value = ssm_store.get_parameter(param_name)
+                    if param_value is None:
+                        raise ValueError(f"Parameter '{param_name}' not found in Parameter Store.")
+                    resolved_vars[var_name] = param_value
+                elif value.startswith("cloudformation_export:"):
+                    export_name = value.split(":", 1)[1]
+                    export_value = cf_exports.get_export_value(export_name)
+                    if export_value is None:
+                        raise ValueError(f"Export '{export_name}' not found in CloudFormation exports.")
+                    resolved_vars[var_name] = export_value
+    elif manager.cloud_provider == "gcp":
+        gcp_secret_manager = GCPSecretManager()
+        for var_name, value in resolved_vars.items():
+            if isinstance(value, str):
+                if value.startswith("gcp_secret_manager:"):
+                    secret_name = value.split(":", 1)[1]
+                    secret_value = gcp_secret_manager.access_secret_version(secret_name)
+                    if secret_value is None:
+                        raise ValueError(f"Secret '{secret_name}' not found in GCP Secret Manager.")
+                    resolved_vars[var_name] = secret_value
 
     return resolved_vars
 

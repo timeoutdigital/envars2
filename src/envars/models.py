@@ -176,6 +176,11 @@ class VariableManager:
         self.kms_key = kms_key
         self.description_mandatory = description_mandatory
         self.cloud_provider: str | None = None
+        if kms_key:
+            if kms_key.startswith("arn:aws:kms:"):
+                self.cloud_provider = "aws"
+            elif kms_key.startswith("projects/"):
+                self.cloud_provider = "gcp"
         self.default_location_name: str | None = None
 
     def add_variable(self, variable: Variable):

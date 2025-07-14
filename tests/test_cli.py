@@ -856,6 +856,7 @@ def test_variable_from_parameter_store(mock_ssm_store, mock_gcp_secret_manager, 
 
     initial_content = """
 configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
   environments:
     - dev
   locations:
@@ -879,6 +880,7 @@ def test_variable_from_gcp_secret_manager(mock_gcp_secret_manager, tmp_path):
 
     initial_content = """
 configuration:
+  kms_key: "projects/my-gcp-project/locations/us-central1/keyRings/my-key-ring/cryptoKeys/my-key"
   environments:
     - dev
   locations:
@@ -964,16 +966,14 @@ environment_variables:
     assert "Invalid nesting in 'PROD_ONLY_VAR' -> 'prod' -> 'master'" in result.stderr.replace("\n", "")
 
 
-@patch("envars.main.GCPSecretManager")
 @patch("envars.main.SSMParameterStore")
-def test_remote_variable_templating(mock_ssm_store, mock_gcp_secret_manager, tmp_path):
+def test_remote_variable_templating_aws(mock_ssm_store, tmp_path):
     mock_ssm_instance = mock_ssm_store.return_value
     mock_ssm_instance.get_parameter.return_value = "ssm_value"
-    mock_gcp_instance = mock_gcp_secret_manager.return_value
-    mock_gcp_instance.access_secret_version.return_value = "gcp_secret_value"
 
     initial_content = """
 configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
   environments:
     - dev
   locations:
@@ -983,10 +983,39 @@ environment_variables:
     default: "my-secret"
   SSM_PATH:
     default: "/path/to/{{ SECRET_NAME }}"
-  GCP_PROJECT:
-    default: "my-gcp-project"
   SSM_VAR:
     default: "parameter_store:{{ SSM_PATH }}"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "my_loc"])
+
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+
+    # Verify that the resolved values are correct
+    assert output_dict["envars"]["SSM_VAR"] == "ssm_value"
+
+    # Verify that the lookup methods were called with the rendered paths
+    mock_ssm_instance.get_parameter.assert_called_once_with("/path/to/my-secret")
+
+
+@patch("envars.main.GCPSecretManager")
+def test_remote_variable_templating_gcp(mock_gcp_secret_manager, tmp_path):
+    mock_gcp_instance = mock_gcp_secret_manager.return_value
+    mock_gcp_instance.access_secret_version.return_value = "gcp_secret_value"
+
+    initial_content = """
+configuration:
+  kms_key: "projects/my-gcp-project/locations/us-central1/keyRings/my-key-ring/cryptoKeys/my-key"
+  environments:
+    - dev
+  locations:
+    - my_loc: "loc123"
+environment_variables:
+  SECRET_NAME:
+    default: "my-secret"
+  GCP_PROJECT:
+    default: "my-gcp-project"
   GCP_VAR:
     default: "gcp_secret_manager:projects/{{ GCP_PROJECT }}/secrets/{{ SECRET_NAME }}/versions/latest"
 """
@@ -997,11 +1026,9 @@ environment_variables:
     output_dict = yaml.safe_load(result.stdout)
 
     # Verify that the resolved values are correct
-    assert output_dict["envars"]["SSM_VAR"] == "ssm_value"
     assert output_dict["envars"]["GCP_VAR"] == "gcp_secret_value"
 
     # Verify that the lookup methods were called with the rendered paths
-    mock_ssm_instance.get_parameter.assert_called_once_with("/path/to/my-secret")
     mock_gcp_instance.access_secret_version.assert_called_once_with(
         "projects/my-gcp-project/secrets/my-secret/versions/latest"
     )

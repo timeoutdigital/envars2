@@ -311,6 +311,7 @@ def test_resolve_cloudformation_export(tmp_path, monkeypatch):
     """Test that cloudformation_export: values are resolved correctly."""
     yaml_content = """
 configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
   environments:
     - dev
   locations:
