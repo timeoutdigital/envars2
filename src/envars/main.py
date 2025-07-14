@@ -293,7 +293,7 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
     # Get encryption context from the variable's scope
     encryption_context = {"app": manager.app or ""}
     if vv.environment_name:
-        encryption_context["environment"] = vv.environment_name
+        encryption_context["env"] = vv.environment_name
     if vv.location_id:
         loc_name = next((l.name for l in manager.locations.values() if l.location_id == vv.location_id), None)
         if loc_name:

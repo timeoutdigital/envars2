@@ -295,7 +295,7 @@ def add_env_var(
             "app": manager.app or "",
         }
         if env:
-            encryption_context["environment"] = env
+            encryption_context["env"] = env
         if loc:
             encryption_context["location"] = loc
 
@@ -647,7 +647,7 @@ def rotate_kms_key(
                 "app": new_manager.app or "",
             }
             if vv.environment_name:
-                encryption_context["environment"] = vv.environment_name
+                encryption_context["env"] = vv.environment_name
             if vv.location_id:
                 loc_name = next(
                     (l.name for l in new_manager.locations.values() if l.location_id == vv.location_id), None

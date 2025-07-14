@@ -150,7 +150,7 @@ configuration:
             {
                 "KeyId": "arn:aws:kms:us-east-1:123456789012:key/mrk-12345",
                 "Plaintext": b"super_secret_value",
-                "EncryptionContext": {"app": "MyApp", "environment": "dev", "location": "my_loc"},
+                "EncryptionContext": {"app": "MyApp", "env": "dev", "location": "my_loc"},
             },
         )
         with patch("boto3.client", return_value=kms_client):
@@ -250,7 +250,7 @@ environment_variables:
             {"Plaintext": b"decrypted_value"},
             {
                 "CiphertextBlob": b"some_encrypted_bytes",
-                "EncryptionContext": {"app": "MyApp", "environment": "dev", "location": "my_loc"},
+                "EncryptionContext": {"app": "MyApp", "env": "dev", "location": "my_loc"},
             },
         )
         with patch("boto3.client", return_value=kms_client):
@@ -527,7 +527,7 @@ environment_variables:
             {"Plaintext": b"decrypted_value"},
             {
                 "CiphertextBlob": b"some_encrypted_bytes",
-                "EncryptionContext": {"app": "MyApp", "environment": "dev", "location": "my_loc"},
+                "EncryptionContext": {"app": "MyApp", "env": "dev", "location": "my_loc"},
             },
         )
         with patch("boto3.client", return_value=kms_client):
