@@ -67,6 +67,7 @@ This approach involves running `envars2` on the host machine (the EC2 instance o
 ```bash
 docker run --env-file <(envars2 print --env prod --loc aws) my-app-image
 ```
+only works for `docker run`, not usable with docker-compose.yml
 
 ### Advantages
 
