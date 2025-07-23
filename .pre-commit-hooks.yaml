@@ -1,0 +1,10 @@
+- id: envars-validate
+  name: Validate envars configuration
+  description: Validates envars.yml file
+  entry: envars
+  language: python
+  args: [validate]
+  files: ^envars\.yml$
+  require_serial: true
+  additional_dependencies: []
+  pass_filenames: false
