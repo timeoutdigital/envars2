@@ -392,11 +392,11 @@ def output_command(
         resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
         if format == "dotenv":
             for k, v in resolved_vars.items():
-                console.print(f"{k}={v}")
+                print(f"{k}={v}")
         elif format == "yaml":
-            console.print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
+            print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
         elif format == "json":
-            console.print(json.dumps({"envars": resolved_vars}, indent=2))
+            print(json.dumps({"envars": resolved_vars}, indent=2))
         else:
             error_console.print(f"[bold red]Error:[/] Invalid output format: {format}")
             raise typer.Exit(code=1)
