@@ -392,7 +392,12 @@ def output_command(
         resolved_vars = _get_resolved_variables(manager, loc, env, decrypt=True)
         if format == "dotenv":
             for k, v in resolved_vars.items():
-                print(f"{k}={v}")
+                if "\n" in v:
+                    # Escape newlines and wrap in quotes for dotenv format
+                    escaped_v = v.replace("\n", "\\n")
+                    print(f'{k}="{escaped_v}"')
+                else:
+                    print(f"{k}={v}")
         elif format == "yaml":
             print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
         elif format == "json":
