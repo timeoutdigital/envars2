@@ -40,6 +40,21 @@ def secret_constructor(loader, node):
     return Secret(value)
 
 
+def str_representer(dumper, data):
+    """Use the literal block style for multi-line strings."""
+    if "\n" in data:
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+class PrettyDumper(yaml.Dumper):
+    pass
+
+
+yaml.add_representer(str, str_representer, Dumper=PrettyDumper)
+yaml.add_representer(Secret, secret_representer, Dumper=PrettyDumper)
+
+
 class SafeLoaderWithDuplicatesCheck(yaml.SafeLoader):
     def construct_mapping(self, node, deep=False):
         mapping = {}

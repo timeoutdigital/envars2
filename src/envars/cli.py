@@ -11,6 +11,7 @@ from rich.tree import Tree
 
 from .cloud_utils import get_default_location_name
 from .main import (
+    PrettyDumper,
     Secret,
     _check_for_circular_dependencies,
     _get_decrypted_value,
@@ -399,7 +400,7 @@ def output_command(
                 else:
                     print(f"{k}={v}")
         elif format == "yaml":
-            print(yaml.dump({"envars": resolved_vars}, sort_keys=False))
+            print(yaml.dump({"envars": resolved_vars}, sort_keys=False, Dumper=PrettyDumper))
         elif format == "json":
             print(json.dumps({"envars": resolved_vars}, indent=2))
         else:
