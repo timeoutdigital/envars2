@@ -1363,3 +1363,54 @@ environment_variables:
         result = runner.invoke(app, ["--file", file_path, "validate"])
         assert result.exit_code == 1
         assert "Value 'invalid_value' for variable 'MY_VAR' does not match validation regex" in result.stderr
+
+
+def test_output_multiline_secret_dotenv(tmp_path):
+    encrypted_string = base64.b64encode(b"some_encrypted_bytes").decode("utf-8")
+    initial_content = f"""
+configuration:
+  app: MyApp
+  kms_key: \"arn:aws:kms:us-east-1:123456789012:key/mrk-12345\"
+  environments:
+    - dev
+  locations:
+    - my_loc: \"loc123\"
+environment_variables:
+  MY_MULTILINE_SECRET:
+    dev:
+      my_loc: !secret {encrypted_string}
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+
+    multiline_value = "line1\nline2\nline3"
+
+    kms_client = boto3.client("kms", region_name="us-east-1")
+    with Stubber(kms_client) as stubber:
+        stubber.add_response(
+            "decrypt",
+            {"Plaintext": multiline_value.encode("utf-8")},
+            {
+                "CiphertextBlob": b"some_encrypted_bytes",
+                "EncryptionContext": {"app": "MyApp", "env": "dev", "location": "my_loc"},
+            },
+        )
+        with patch("boto3.client", return_value=kms_client):
+            result = runner.invoke(
+                app,
+                [
+                    "--file",
+                    file_path,
+                    "output",
+                    "--format",
+                    "dotenv",
+                    "--env",
+                    "dev",
+                    "--loc",
+                    "my_loc",
+                ],
+            )
+            assert result.exit_code == 0, result.stderr
+            escaped_multiline_value = multiline_value.replace("\n", "\\n")
+            expected_output = f'MY_MULTILINE_SECRET="{escaped_multiline_value}"'
+            assert expected_output in result.stdout
+            stubber.assert_no_pending_responses()
