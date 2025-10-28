@@ -2,6 +2,10 @@
 
 version: 0.2
 
+env:
+  variables:
+    UV_CACHE_DIR: "/codebuild/output/.cache"
+
 phases:
 
   install:
