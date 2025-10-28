@@ -4,6 +4,7 @@ version: 0.2
 
 env:
   variables:
+    GOOGLE_APPLICATION_CREDENTIALS: dummy_gcp_credentials.json
     UV_CACHE_DIR: "/codebuild/output/.cache"
 
 phases:
@@ -12,6 +13,7 @@ phases:
     on-failure: ABORT
     commands:
     - curl -LsSf https://astral.sh/uv/0.9.5/install.sh | env UV_INSTALL_DIR="/usr/bin" sh
+    - echo '{"client_id": "dummy", "client_secret": "dummy", "refresh_token": "dummy", "type": "authorized_user"}' > dummy_gcp_credentials.json
 
   build:
     on-failure: ABORT
