@@ -12,3 +12,6 @@ site/
 
 # don't commit envars.yml
 envars.yml
+
+# vim
+*.swp
