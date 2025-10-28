@@ -10,13 +10,11 @@ env:
 phases:
 
   install:
-    on-failure: ABORT
     commands:
     - curl -LsSf https://astral.sh/uv/0.9.5/install.sh | env UV_INSTALL_DIR="/usr/bin" sh
-    - echo '{"client_id": "dummy", "client_secret": "dummy", "refresh_token": "dummy", "type": "authorized_user"}' > dummy_gcp_credentials.json
+    - echo "{}" > dummy_gcp_credentials.json
 
   build:
-    on-failure: ABORT
     commands:
     - uv run pre-commit run --all-files
     - uv run pytest
