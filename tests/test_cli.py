@@ -507,6 +507,18 @@ configuration:
     assert "Location 'other_loc' not found" in result.stderr
 
 
+def test_output_invalid_loc_no_locations_configured(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev", "--loc", "other_loc"])
+    assert result.exit_code == 1
+    assert "'locations' are not configured" in result.stderr
+
+
 def test_exec_invalid_env(tmp_path):
     initial_content = """
 configuration:

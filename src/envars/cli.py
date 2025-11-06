@@ -59,6 +59,11 @@ def _resolve_and_print_context(
                 console.print(f"[dim]DEBUG: Auto-detected location: '{resolved_loc}'[/dim]")
     else:
         # A location was explicitly provided, validate it
+        if not manager.locations:
+            error_console.print(
+                "[bold red]Error:[/] 'locations' are not configured for use in the project. Cannot use '--loc'."
+            )
+            raise typer.Exit(code=1)
         if not any(l.name == resolved_loc for l in manager.locations.values()):
             error_console.print(f"[bold red]Error:[/] Location '{resolved_loc}' not found in configuration.")
             raise typer.Exit(code=1)
