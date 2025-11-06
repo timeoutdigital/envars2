@@ -200,10 +200,11 @@ def write_envars_yml(manager: VariableManager, file_path: str):
             "kms_key": manager.kms_key,
             "description_mandatory": manager.description_mandatory,
             "environments": sorted(manager.environments.keys()),
-            "locations": locations_data,
         },
         "environment_variables": {},
     }
+    if locations_data:
+        data["configuration"]["locations"] = locations_data
 
     # Populate environment_variables
     sorted_vars = sorted(manager.variables.items())
@@ -265,10 +266,11 @@ def write_envars_yml(manager: VariableManager, file_path: str):
         if any(data["configuration"].values()):
             config_data = {"configuration": data["configuration"]}
             # Sort locations list of dicts
-            config_data["configuration"]["locations"] = sorted(
-                config_data["configuration"]["locations"],
-                key=lambda x: list(x.keys())[0],
-            )
+            if "locations" in config_data["configuration"]:
+                config_data["configuration"]["locations"] = sorted(
+                    config_data["configuration"]["locations"],
+                    key=lambda x: list(x.keys())[0],
+                )
             yaml.dump(config_data, f, sort_keys=False, Dumper=yaml.Dumper)
             f.write("\n")
 
@@ -362,7 +364,7 @@ def _check_for_circular_dependencies(variables: dict[str, str | Secret]):
 
 def _get_resolved_variables(
     manager: VariableManager,
-    loc: str,
+    loc: str | None,
     env: str | None,
     decrypt: bool,
 ) -> dict[str, str | Secret]:
@@ -375,7 +377,8 @@ def _get_resolved_variables(
     if env not in manager.environments:
         raise ValueError(f"Environment '{env}' not found in configuration.")
 
-    if not any(l.name == loc for l in manager.locations.values()):
+    # Only validate location if a specific one is provided and locations are configured
+    if loc is not None and not any(l.name == loc for l in manager.locations.values()):
         raise ValueError(f"Location '{loc}' not found in configuration.")
 
     resolved_vars = {}

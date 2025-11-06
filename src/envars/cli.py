@@ -33,7 +33,7 @@ error_console = Console(stderr=True)
 
 def _resolve_and_print_context(
     ctx: typer.Context, loc: str | None, env: str | None
-) -> tuple[VariableManager, str, str | None]:
+) -> tuple[VariableManager, str | None, str | None]:
     """Resolves location and environment, printing debug info if verbose."""
     if env:
         os.environ["ENVARS_ENV"] = env
@@ -42,14 +42,28 @@ def _resolve_and_print_context(
 
     resolved_loc = loc
     if resolved_loc is None:
-        resolved_loc = get_default_location_name(manager)
-        if resolved_loc is None:
-            error_console.print("[bold red]Error:[/] Could not determine default location. Please specify with --loc.")
+        if not manager.locations:
+            # No locations configured, so no need to resolve a default or error
+            if verbose:
+                console.print("[dim]DEBUG: No locations configured, proceeding without a specific location.[/dim]")
+            resolved_loc = None  # Explicitly set to None
+        else:
+            # Locations are configured, try to auto-detect
+            resolved_loc = get_default_location_name(manager)
+            if resolved_loc is None:
+                error_console.print(
+                    "[bold red]Error:[/] Could not determine default location. Please specify with --loc."
+                )
+                raise typer.Exit(code=1)
+            if verbose:
+                console.print(f"[dim]DEBUG: Auto-detected location: '{resolved_loc}'[/dim]")
+    else:
+        # A location was explicitly provided, validate it
+        if not any(l.name == resolved_loc for l in manager.locations.values()):
+            error_console.print(f"[bold red]Error:[/] Location '{resolved_loc}' not found in configuration.")
             raise typer.Exit(code=1)
         if verbose:
-            console.print(f"[dim]DEBUG: Auto-detected location: '{resolved_loc}'[/dim]")
-    elif verbose:
-        console.print(f"[dim]DEBUG: Using specified location: '{resolved_loc}'[/dim]")
+            console.print(f"[dim]DEBUG: Using specified location: '{resolved_loc}'[/dim]")
 
     final_env = env
     if final_env is None:
@@ -59,7 +73,7 @@ def _resolve_and_print_context(
     elif verbose:
         console.print(f"[dim]DEBUG: Using specified environment: '{final_env}'[/dim]")
 
-    return manager, resolved_loc, env
+    return manager, resolved_loc, final_env
 
 
 @app.command(name="init")
@@ -67,7 +81,7 @@ def init_envars(
     ctx: typer.Context,
     app_name: str = typer.Option(..., "--app", "-a", help="Application name."),
     env: str = typer.Option(..., "--env", "-e", help="Comma-separated list of environments."),
-    loc: str = typer.Option(..., "--loc", "-l", help="Comma-separated list of locations in name:id format."),
+    loc: str = typer.Option("", "--loc", "-l", help="Comma-separated list of locations in name:id format."),
     kms_key: str = typer.Option(None, "--kms-key", "-k", help="Global KMS key."),
     force: bool = typer.Option(False, "--force", help="Overwrite existing envars.yml file."),
     description_mandatory: bool = typer.Option(
@@ -88,14 +102,15 @@ def init_envars(
     for env_name in environments:
         manager.add_environment(EnvarsEnvironment(name=env_name))
 
-    locations = [l.strip() for l in loc.split(",")]
-    for loc_item in locations:
-        try:
-            name, loc_id = loc_item.split(":", 1)
-            manager.add_location(Location(name=name, location_id=loc_id))
-        except ValueError as e:
-            error_console.print(f"[bold red]Error:[/] Invalid location format: {loc_item}. Use name:id.")
-            raise typer.Exit(code=1) from e
+    if loc:
+        locations = [l.strip() for l in loc.split(",")]
+        for loc_item in locations:
+            try:
+                name, loc_id = loc_item.split(":", 1)
+                manager.add_location(Location(name=name, location_id=loc_id))
+            except ValueError as e:
+                error_console.print(f"[bold red]Error:[/] Invalid location format: {loc_item}. Use name:id.")
+                raise typer.Exit(code=1) from e
 
     try:
         write_envars_yml(manager, file_path)
@@ -310,26 +325,26 @@ def add_env_var(
     environment_name = None
     location_id = None
 
-    if env and loc:
-        scope_type = "SPECIFIC"
-        environment_name = env
-        # Find location_id by name
+    if loc:
+        if not manager.locations:
+            error_console.print(
+                "[bold red]Error:[/] 'locations' are not configured for use in the project. Cannot use '--loc'."
+            )
+            raise typer.Exit(code=1)
         found_loc = next((l for l in manager.locations.values() if l.name == loc), None)
         if not found_loc:
             error_console.print(f"[bold red]Error:[/bold red] Location '{loc}' not found.")
             raise typer.Exit(code=1)
         location_id = found_loc.location_id
+
+    if env and loc:
+        scope_type = "SPECIFIC"
+        environment_name = env
     elif env:
         scope_type = "ENVIRONMENT"
         environment_name = env
     elif loc:
         scope_type = "LOCATION"
-        # Find location_id by name
-        found_loc = next((l for l in manager.locations.values() if l.name == loc), None)
-        if not found_loc:
-            error_console.print(f"[bold red]Error:[/bold red] Location '{loc}' not found.")
-            raise typer.Exit(code=1)
-        location_id = found_loc.location_id
 
     new_var_value = VariableValue(
         variable_name=var_name,
