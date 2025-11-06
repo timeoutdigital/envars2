@@ -77,7 +77,7 @@ convention = "google" # Or "numpy", "pep257"
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.2.0",
+    "pre-commit-uv>=4.2.0",
     "pytest>=8.4.1",
     "ruff>=0.12.2",
     "ty>=0.0.1a13",
