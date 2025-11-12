@@ -307,6 +307,39 @@ key2: value2
     assert data == {"key1": "value1", "key2": "value2"}
 
 
+def test_get_env_without_locations_and_no_loc_arg(tmp_path):
+    """Test that get_env works correctly when no locations are configured and no --loc is provided."""
+    yaml_content = """
+configuration:
+  environments:
+    - dev
+
+environment_variables:
+  MY_VAR:
+    default: "default_value"
+  ANOTHER_VAR:
+    dev: "dev_value"
+"""
+    file_path = create_yaml_file(tmp_path, yaml_content)
+    manager = load_from_yaml(file_path)
+    assert not manager.locations  # Ensure no locations are loaded
+
+    # Test get_env
+    from src.envars.main import get_env
+
+    resolved_vars = get_env(env="dev", file_path=file_path)
+    assert resolved_vars["MY_VAR"] == "default_value"
+    assert resolved_vars["ANOTHER_VAR"] == "dev_value"
+
+    # Test get_all_envs
+    from src.envars.main import get_all_envs
+
+    all_envs = get_all_envs(loc=None, file_path=file_path)
+    assert "dev" in all_envs
+    assert all_envs["dev"]["MY_VAR"] == "default_value"
+    assert all_envs["dev"]["ANOTHER_VAR"] == "dev_value"
+
+
 def test_resolve_cloudformation_export(tmp_path, monkeypatch):
     """Test that cloudformation_export: values are resolved correctly."""
     yaml_content = """
