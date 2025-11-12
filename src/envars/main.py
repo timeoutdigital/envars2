@@ -444,7 +444,7 @@ def _get_resolved_variables(
     return resolved_vars
 
 
-def get_all_envs(loc: str, file_path: str = "envars.yml") -> dict:
+def get_all_envs(loc: str | None, file_path: str = "envars.yml") -> dict:
     """Loads and resolves variables for all environments in a given location."""
     manager = load_from_yaml(file_path)
     if loc is None:
@@ -457,7 +457,7 @@ def get_all_envs(loc: str, file_path: str = "envars.yml") -> dict:
     return all_envs
 
 
-def get_env(env: str, loc: str, file_path: str = "envars.yml") -> dict:
+def get_env(env: str, loc: str | None = None, file_path: str = "envars.yml") -> dict:
     """Loads and resolves variables for a given environment and location."""
     manager = load_from_yaml(file_path)
     if loc is None:
