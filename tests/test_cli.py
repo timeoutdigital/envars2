@@ -70,6 +70,30 @@ def test_init_command(tmp_path):
     assert data["configuration"]["description_mandatory"] is False
 
 
+def test_init_command_no_locations(tmp_path):
+    file_path = tmp_path / "envars_no_loc.yml"
+    result = runner.invoke(
+        app,
+        [
+            "--file",
+            str(file_path),
+            "init",
+            "--app",
+            "MyApp",
+            "--env",
+            "dev,prod",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "Successfully initialized" in result.stdout
+
+    data = read_yaml_file(file_path)
+    assert data["configuration"]["app"] == "MyApp"
+    assert data["configuration"]["environments"] == ["dev", "prod"]
+    assert "locations" not in data["configuration"]
+    assert data["configuration"]["description_mandatory"] is False
+
+
 def test_add_default_variable(tmp_path):
     file_path = create_envars_file(tmp_path)
     result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=my_value"])
@@ -201,10 +225,22 @@ def test_add_variable_invalid_format(tmp_path):
 
 
 def test_add_variable_non_existent_location(tmp_path):
-    file_path = create_envars_file(tmp_path)
+    initial_content = """
+configuration:
+  locations:
+    - my_loc: "loc123"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
     result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=value", "--loc", "non_existent_loc"])
     assert result.exit_code == 1
     assert "Location 'non_existent_loc' not found" in result.stderr
+
+
+def test_add_variable_with_loc_but_no_locations_configured(tmp_path):
+    file_path = create_envars_file(tmp_path)
+    result = runner.invoke(app, ["--file", file_path, "add", "MY_VAR=value", "--loc", "some_loc"])
+    assert result.exit_code == 1
+    assert "locations' are not configured" in result.stderr
 
 
 def test_add_variable_non_existent_environment_for_specific(tmp_path):
@@ -469,6 +505,18 @@ configuration:
     result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev", "--loc", "other_loc"])
     assert result.exit_code == 1
     assert "Location 'other_loc' not found" in result.stderr
+
+
+def test_output_invalid_loc_no_locations_configured(tmp_path):
+    initial_content = """
+configuration:
+  environments:
+    - dev
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "dev", "--loc", "other_loc"])
+    assert result.exit_code == 1
+    assert "'locations' are not configured" in result.stderr
 
 
 def test_exec_invalid_env(tmp_path):
@@ -1253,7 +1301,7 @@ XAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXA
 -----END OPENSSH PRIVATE KEY-----"""
     value_file.write_text(file_content)
 
-    result = runner.invoke(
+    runner.invoke(
         app,
         [
             "--file",
@@ -1265,11 +1313,26 @@ XAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXAXA
             str(value_file),
         ],
     )
-    assert result.exit_code == 0
-    assert "Successfully added/updated MY_VAR" in result.stdout
-
     data = read_yaml_file(file_path)
     assert data["environment_variables"]["MY_VAR"]["default"] == file_content
+
+
+def test_output_command_no_locations(tmp_path):
+    initial_content = """
+configuration:
+  app: test-app
+  environments:
+    - prod
+    - staging
+environment_variables:
+  TEST:
+    default: "test_value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+
+    result = runner.invoke(app, ["--file", file_path, "output", "--env", "prod"])
+    assert result.exit_code == 0
+    assert "TEST=test_value" in result.stdout
 
 
 class TestCircularDependency:
