@@ -18,7 +18,7 @@
     - [ ] Update \`src/envars/kms_factory.py\` (or equivalent) to instantiate \`OpenBaoKMS\` when the provider is 'openbao'.
 - [x] Task: Conductor - User Manual Verification 'Core Implementation' (Protocol in workflow.md)
 
-## Phase 3: CLI and Testing
+## Phase 3: CLI and Testing [checkpoint: 4726668]
 - [x] Task: Update CLI commands to support Openbao. [df5bd6e]
     - [ ] Verify `envars add --secret` works with Openbao.
     - [ ] Verify `envars exec` correctly decrypts values.
@@ -27,4 +27,4 @@
     - [ ] Add integration tests (skipped by default unless an Openbao instance is available).
 - [x] Task: Update documentation. [da628f6]
     - [ ] Add a new section to \`README.md\` or \`docs/\` explaining how to configure and use Openbao.
-- [ ] Task: Conductor - User Manual Verification 'CLI and Testing' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'CLI and Testing' (Protocol in workflow.md)
