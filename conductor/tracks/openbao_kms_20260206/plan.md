@@ -22,8 +22,8 @@
 - [x] Task: Update CLI commands to support Openbao. [df5bd6e]
     - [ ] Verify `envars add --secret` works with Openbao.
     - [ ] Verify `envars exec` correctly decrypts values.
-- [ ] Task: Add comprehensive unit and integration tests.
-    - [ ] Mock Openbao API responses in `tests/test_openbao_kms.py`.
+- [x] Task: Add comprehensive unit and integration tests. [df5bd6e]
+    - [ ] Mock Openbao API responses in \`tests/test_openbao_kms.py\`.
     - [ ] Add integration tests (skipped by default unless an Openbao instance is available).
 - [ ] Task: Update documentation.
     - [ ] Add a new section to `README.md` or `docs/` explaining how to configure and use Openbao.
