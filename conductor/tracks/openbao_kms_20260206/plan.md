@@ -3,7 +3,7 @@
 ## Phase 1: Setup and Configuration
 - [x] Task: Create a reproduction test case that fails because Openbao is not yet supported. [eba97d1]
     - [ ] Create a test in `tests/test_openbao_kms.py` that attempts to initialize and use an Openbao KMS provider.
-- [ ] Task: Update `envars.yml` schema and model definitions to support Openbao configuration.
+- [x] Task: Update `envars.yml` schema and model definitions to support Openbao configuration. [2dd6857]
     - [ ] Modify `src/envars/models.py` to include `OpenBaoConfig`.
     - [ ] Update validation logic to ensure required fields (address, key) are present.
 - [ ] Task: Conductor - User Manual Verification 'Setup and Configuration' (Protocol in workflow.md)
