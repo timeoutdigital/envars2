@@ -325,13 +325,15 @@ def add_env_var(
 
             token = os.environ.get("VAULT_TOKEN")
 
-            parts = manager.kms_key.split(":")
-            if len(parts) == 3:
-                address = parts[1]
-                key_id = parts[2]
+            # kms_key format is "openbao:<address>:<key_id>" or "openbao:<key_id>"
+            # Address might contain colons (e.g. http://...)
+            # We use rsplit to get the last part as key_id
+            openbao_part = manager.kms_key[len("openbao:") :]
+            if ":" in openbao_part:
+                address, key_id = openbao_part.rsplit(":", 1)
             else:
                 address = os.environ.get("VAULT_ADDR", "http://localhost:8200")
-                key_id = parts[1]
+                key_id = openbao_part
 
             agent = OpenBaoKMSAgent(address=address, token=token)
         else:
@@ -723,13 +725,12 @@ def rotate_kms_key(
 
                 token = os.environ.get("VAULT_TOKEN")
 
-                parts = new_kms_key.split(":")
-                if len(parts) == 3:
-                    address = parts[1]
-                    key_id = parts[2]
+                openbao_part = new_kms_key[len("openbao:") :]
+                if ":" in openbao_part:
+                    address, key_id = openbao_part.rsplit(":", 1)
                 else:
                     address = os.environ.get("VAULT_ADDR", "http://localhost:8200")
-                    key_id = parts[1]
+                    key_id = openbao_part
 
                 agent = OpenBaoKMSAgent(address=address, token=token)
                 encrypted_value = agent.encrypt(decrypted_value, key_id, encryption_context)

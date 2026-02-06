@@ -329,17 +329,13 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
         elif manager.cloud_provider == "openbao":
             # For Openbao, we check for VAULT_TOKEN, but it might be injected by a proxy
             token = os.environ.get("VAULT_TOKEN")
-            # kms_key format is "openbao:address:key_id" or just "openbao:key_id" (if address is default/env)
-            # Actually user said "all in one line kms_key same as aws/gcp"
-            # If it's openbao:my-key, we might need more info or assume defaults.
-            # Let's assume for now kms_key = "openbao:address:key_id" or we use VAULT_ADDR
-            parts = manager.kms_key.split(":")
-            if len(parts) == 3:
-                address = parts[1]
-                key_id = parts[2]
+            # kms_key format is "openbao:<address>:<key_id>" or "openbao:<key_id>"
+            openbao_part = manager.kms_key[len("openbao:") :]
+            if ":" in openbao_part:
+                address, key_id = openbao_part.rsplit(":", 1)
             else:
                 address = os.environ.get("VAULT_ADDR", "http://localhost:8200")
-                key_id = parts[1]
+                key_id = openbao_part
 
             agent = OpenBaoKMSAgent(address=address, token=token)
             return agent.decrypt(str(vv.value), key_id, encryption_context)
