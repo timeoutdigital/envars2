@@ -7,12 +7,14 @@ import requests
 class OpenBaoKMSAgent:
     """A class to handle Openbao KMS operations."""
 
-    def __init__(self, address: str, token: str, transit_mount: str = "transit"):
+    def __init__(self, address: str, token: str | None = None, transit_mount: str = "transit"):
         """Initializes the Openbao client."""
         self.address = address.rstrip("/")
         self.token = token
         self.transit_mount = transit_mount
-        self.headers = {"X-Vault-Token": self.token}
+        self.headers = {}
+        if self.token:
+            self.headers["X-Vault-Token"] = self.token
 
     def encrypt(self, data: str, key_id: str, encryption_context: dict[str, str]) -> str:
         """Encrypts data using the specified Openbao transit key."""

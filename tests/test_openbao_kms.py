@@ -12,6 +12,13 @@ def test_init():
     assert agent.headers["X-Vault-Token"] == "test-token"  # noqa: S105
 
 
+def test_init_no_token():
+    """Test initialization without a token."""
+    agent = OpenBaoKMSAgent(address="http://localhost:8200")
+    assert agent.token is None
+    assert "X-Vault-Token" not in agent.headers
+
+
 @patch("requests.post")
 def test_encrypt(mock_post):
     """Test the encrypt method."""

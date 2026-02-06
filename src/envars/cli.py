@@ -315,11 +315,6 @@ def add_env_var(
             from .openbao_kms import OpenBaoKMSAgent
 
             token = os.environ.get("VAULT_TOKEN")
-            if not token:
-                error_console.print(
-                    "[bold red]Error:[/] VAULT_TOKEN environment variable is required for Openbao encryption."
-                )
-                raise typer.Exit(code=1)
 
             parts = manager.kms_key.split(":")
             if len(parts) == 3:
@@ -718,11 +713,6 @@ def rotate_kms_key(
                 from .openbao_kms import OpenBaoKMSAgent
 
                 token = os.environ.get("VAULT_TOKEN")
-                if not token:
-                    error_console.print(
-                        "[bold red]Error:[/] VAULT_TOKEN environment variable is required for Openbao encryption."
-                    )
-                    raise typer.Exit(code=1)
 
                 parts = new_kms_key.split(":")
                 if len(parts) == 3:

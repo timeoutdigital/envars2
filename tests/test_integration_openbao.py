@@ -26,3 +26,26 @@ def test_decryption_integration_openbao(mock_agent_class):
     assert decrypted_value == "decrypted-secret"
     mock_agent_class.assert_called_once_with(address="http://localhost:8200", token="test-token")  # noqa: S106
     mock_agent.decrypt.assert_called_once_with("vault:v1:encrypted", "my-key", {"app": "test-app", "env": "dev"})
+
+
+@patch.dict(os.environ, {}, clear=True)
+@patch("src.envars.main.OpenBaoKMSAgent")
+def test_decryption_integration_openbao_no_token(mock_agent_class):
+    """Test integration of OpenBao decryption in _get_decrypted_value without token."""
+    mock_agent = MagicMock()
+    mock_agent.decrypt.return_value = "decrypted-secret"
+    mock_agent_class.return_value = mock_agent
+
+    # Use short format to test default address resolution too
+    manager = VariableManager(app="test-app", kms_key="openbao:my-key")
+    manager.cloud_provider = "openbao"
+
+    vv = VariableValue(
+        variable_name="MY_SECRET", value=Secret("vault:v1:encrypted"), scope_type="ENVIRONMENT", environment_name="dev"
+    )
+
+    decrypted_value = _get_decrypted_value(manager, vv)
+
+    assert decrypted_value == "decrypted-secret"
+    mock_agent_class.assert_called_once_with(address="http://localhost:8200", token=None)
+    mock_agent.decrypt.assert_called_once_with("vault:v1:encrypted", "my-key", {"app": "test-app", "env": "dev"})

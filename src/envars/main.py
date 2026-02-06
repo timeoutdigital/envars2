@@ -327,10 +327,8 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
             key_id = manager.kms_key
             return agent.decrypt(str(vv.value), key_id, encryption_context)
         elif manager.cloud_provider == "openbao":
-            # For Openbao, we expect VAULT_TOKEN to be set in the environment
+            # For Openbao, we check for VAULT_TOKEN, but it might be injected by a proxy
             token = os.environ.get("VAULT_TOKEN")
-            if not token:
-                raise ValueError("VAULT_TOKEN environment variable is required for Openbao decryption.")
             # kms_key format is "openbao:address:key_id" or just "openbao:key_id" (if address is default/env)
             # Actually user said "all in one line kms_key same as aws/gcp"
             # If it's openbao:my-key, we might need more info or assume defaults.
