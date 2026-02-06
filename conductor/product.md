@@ -13,4 +13,4 @@ The primary users of Envars are backend developers who need a consistent and rel
 
 ## Core Features
 - **Hierarchical Configuration:** A flexible system for defining default configuration values and selectively overriding them based on the specific environment or deployment location.
-- **Native Secret Encryption:** Seamless, built-in support for encrypting and decrypting sensitive data using industry-standard cloud key management services (AWS KMS and Google Cloud KMS).
+- **Native Secret Encryption:** Seamless, built-in support for encrypting and decrypting sensitive data using industry-standard key management services (AWS KMS, Google Cloud KMS, and Openbao).
