@@ -21,6 +21,7 @@ from .models import (
     VariableManager,
     VariableValue,
 )
+from .openbao_kms import OpenBaoKMSAgent
 
 
 class DuplicateKeyError(Exception):
@@ -324,6 +325,25 @@ def _get_decrypted_value(manager: VariableManager, vv: VariableValue):
         elif manager.cloud_provider == "gcp":
             agent = GCPKMSAgent()
             key_id = manager.kms_key
+            return agent.decrypt(str(vv.value), key_id, encryption_context)
+        elif manager.cloud_provider == "openbao":
+            # For Openbao, we expect VAULT_TOKEN to be set in the environment
+            token = os.environ.get("VAULT_TOKEN")
+            if not token:
+                raise ValueError("VAULT_TOKEN environment variable is required for Openbao decryption.")
+            # kms_key format is "openbao:address:key_id" or just "openbao:key_id" (if address is default/env)
+            # Actually user said "all in one line kms_key same as aws/gcp"
+            # If it's openbao:my-key, we might need more info or assume defaults.
+            # Let's assume for now kms_key = "openbao:address:key_id" or we use VAULT_ADDR
+            parts = manager.kms_key.split(":")
+            if len(parts) == 3:
+                address = parts[1]
+                key_id = parts[2]
+            else:
+                address = os.environ.get("VAULT_ADDR", "http://localhost:8200")
+                key_id = parts[1]
+
+            agent = OpenBaoKMSAgent(address=address, token=token)
             return agent.decrypt(str(vv.value), key_id, encryption_context)
         else:
             raise ValueError(f"Unknown KMS key format: {manager.kms_key}")

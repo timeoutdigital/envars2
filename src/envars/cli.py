@@ -132,6 +132,8 @@ def _get_cloud_provider(manager: VariableManager) -> str | None:
             return "aws"
         if manager.kms_key.startswith("projects/"):
             return "gcp"
+        if manager.kms_key.startswith("openbao:"):
+            return "openbao"
     return None
 
 
@@ -309,6 +311,25 @@ def add_env_var(
 
             agent = GCPKMSAgent()
             key_id = manager.kms_key
+        elif manager.kms_key.startswith("openbao:"):
+            from .openbao_kms import OpenBaoKMSAgent
+
+            token = os.environ.get("VAULT_TOKEN")
+            if not token:
+                error_console.print(
+                    "[bold red]Error:[/] VAULT_TOKEN environment variable is required for Openbao encryption."
+                )
+                raise typer.Exit(code=1)
+
+            parts = manager.kms_key.split(":")
+            if len(parts) == 3:
+                address = parts[1]
+                key_id = parts[2]
+            else:
+                address = os.environ.get("VAULT_ADDR", "http://localhost:8200")
+                key_id = parts[1]
+
+            agent = OpenBaoKMSAgent(address=address, token=token)
         else:
             error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {manager.kms_key}")
             raise typer.Exit(code=1)
@@ -693,6 +714,26 @@ def rotate_kms_key(
 
                 agent = GCPKMSAgent()
                 encrypted_value = agent.encrypt(decrypted_value, new_kms_key, encryption_context)
+            elif new_kms_key.startswith("openbao:"):
+                from .openbao_kms import OpenBaoKMSAgent
+
+                token = os.environ.get("VAULT_TOKEN")
+                if not token:
+                    error_console.print(
+                        "[bold red]Error:[/] VAULT_TOKEN environment variable is required for Openbao encryption."
+                    )
+                    raise typer.Exit(code=1)
+
+                parts = new_kms_key.split(":")
+                if len(parts) == 3:
+                    address = parts[1]
+                    key_id = parts[2]
+                else:
+                    address = os.environ.get("VAULT_ADDR", "http://localhost:8200")
+                    key_id = parts[1]
+
+                agent = OpenBaoKMSAgent(address=address, token=token)
+                encrypted_value = agent.encrypt(decrypted_value, key_id, encryption_context)
             else:
                 error_console.print(f"[bold red]Error:[/] Unknown KMS key format: {new_kms_key}")
                 raise typer.Exit(code=1)
