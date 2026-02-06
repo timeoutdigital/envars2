@@ -14,8 +14,8 @@
     - [ ] Implement authentication (Token-based initially).
     - [ ] Implement `encrypt` method using `hvac` or direct HTTP requests.
     - [ ] Implement `decrypt` method.
-- [ ] Task: Integrate `OpenBaoKMS` into the main KMS factory.
-    - [ ] Update `src/envars/kms_factory.py` (or equivalent) to instantiate `OpenBaoKMS` when the provider is 'openbao'.
+- [~] Task: Integrate \`OpenBaoKMS\` into the main KMS factory.
+    - [ ] Update \`src/envars/kms_factory.py\` (or equivalent) to instantiate \`OpenBaoKMS\` when the provider is 'openbao'.
 - [ ] Task: Conductor - User Manual Verification 'Core Implementation' (Protocol in workflow.md)
 
 ## Phase 3: CLI and Testing
