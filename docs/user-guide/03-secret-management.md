@@ -1,6 +1,14 @@
 # User Guide: Secret Management
 
-`envars` provides a secure and straightforward way to manage secrets, such as API keys, database passwords, and tokens, by integrating with **AWS Key Management Service (KMS)** and **Google Cloud KMS**.
+`envars` provides a secure and straightforward way to manage secrets, such as API keys, database passwords, and tokens, by integrating with **AWS Key Management Service (KMS)**, **Google Cloud KMS**, and **Openbao**.
+
+## Supported Providers
+
+- **AWS KMS**: Use a full ARN (e.g., `arn:aws:kms:us-east-1:123456789012:key/mrk-12345`).
+- **Google Cloud KMS**: Use the full key path (e.g., `projects/my-project/locations/global/keyRings/my-ring/cryptoKeys/my-key`).
+- **Openbao**: Use the `openbao:<key_id>` format (e.g., `openbao:my-key`).
+    - **VAULT_ADDR**: Defaults to `http://localhost:8200` if not specified in the `kms_key` (format `openbao:http://addr:port:key_id`).
+    - **VAULT_TOKEN**: Required for authentication, unless a proxy in front of Openbao handles it.
 
 ## How it Works
 

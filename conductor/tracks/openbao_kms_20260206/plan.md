@@ -25,6 +25,6 @@
 - [x] Task: Add comprehensive unit and integration tests. [df5bd6e]
     - [ ] Mock Openbao API responses in \`tests/test_openbao_kms.py\`.
     - [ ] Add integration tests (skipped by default unless an Openbao instance is available).
-- [ ] Task: Update documentation.
-    - [ ] Add a new section to `README.md` or `docs/` explaining how to configure and use Openbao.
+- [x] Task: Update documentation. [da628f6]
+    - [ ] Add a new section to \`README.md\` or \`docs/\` explaining how to configure and use Openbao.
 - [ ] Task: Conductor - User Manual Verification 'CLI and Testing' (Protocol in workflow.md)

@@ -14,7 +14,7 @@ Stop juggling `.env` files and start treating your configuration like code.
 
 - **Configuration as Code**: Store your entire configuration in a single, version-controlled `envars.yml` file.
 - **Hierarchical Configuration**: Define variables at different levels (default, environment, location) and let `envars` resolve the correct value for the context.
-- **Secure Secret Management**: Encrypt and decrypt sensitive values using [AWS KMS](https://aws.amazon.com/kms/) or [Google Cloud KMS](https://cloud.google.com/kms).
+- **Secure Secret Management**: Encrypt and decrypt sensitive values using [AWS KMS](https://aws.amazon.com/kms/), [Google Cloud KMS](https://cloud.google.com/kms), or [Openbao](https://openbao.org/).
 - **Templating with Jinja2**: Resolve variable values dynamically using the power of Jinja2 templating.
 - **Value Validation**: Ensure the integrity of your configuration with optional regex-based validation for variable values.
 - **Cloud Secret Manager Integration**: Fetch secrets on-the-fly from [AWS SSM Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html), [GCP Secret Manager](https://cloud.google.com/secret-manager), or [AWS CloudFormation Exports](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html).
@@ -97,7 +97,8 @@ The `envars.yml` file is the heart of your configuration. It's a simple YAML fil
 ```yaml
 configuration:
   app: my-app
-  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+  # Supports AWS KMS ARN, GCP KMS Key Path, or Openbao key (e.g., openbao:my-key)
+  kms_key: "openbao:my-key"
   environments:
     - dev
     - prod
@@ -137,7 +138,6 @@ Here are some ideas for future enhancements that could make `envars` even more p
 
 - **AWS Secrets Manager Integration**: Add a new `aws_secrets_manager:` prefix to fetch secrets directly from AWS Secrets Manager, which is a more feature-rich service for managing sensitive data than SSM Parameter Store.
 - **Terraform State File Lookup**: Implement a `terraform_state:` prefix to read outputs directly from a Terraform state file (e.g., from an S3 or GCS backend). This would create a powerful, direct link between your infrastructure-as-code and application configuration.
-- **HashiCorp Vault Integration**: Support for `vault:` lookups to fetch secrets from a HashiCorp Vault instance, which would make `envars` more useful in on-premise or multi-cloud environments.
 - **Local File Content Lookup**: A `file:` prefix to read the content of a local file directly into a variable. This would be useful for loading certificates, keys, or other configuration files that are not suitable for storing in `envars.yml` itself.
 
 ## Development
