@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Add Openbao as a KMS provider**
+- [x] **Track: Add Openbao as a KMS provider**
   *Link: [./conductor/tracks/openbao_kms_20260206/](./conductor/tracks/openbao_kms_20260206/)*
