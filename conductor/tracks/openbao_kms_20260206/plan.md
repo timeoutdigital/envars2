@@ -19,7 +19,7 @@
 - [x] Task: Conductor - User Manual Verification 'Core Implementation' (Protocol in workflow.md)
 
 ## Phase 3: CLI and Testing
-- [ ] Task: Update CLI commands to support Openbao.
+- [x] Task: Update CLI commands to support Openbao. [df5bd6e]
     - [ ] Verify `envars add --secret` works with Openbao.
     - [ ] Verify `envars exec` correctly decrypts values.
 - [ ] Task: Add comprehensive unit and integration tests.
