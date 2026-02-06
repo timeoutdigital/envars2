@@ -8,7 +8,7 @@
     - [ ] Update validation logic to ensure required fields (address, key) are present.
 - [x] Task: Conductor - User Manual Verification 'Setup and Configuration' (Protocol in workflow.md)
 
-## Phase 2: Core Implementation
+## Phase 2: Core Implementation [checkpoint: 0c9a485]
 - [x] Task: Implement the `OpenBaoKMS` class. [75271df]
     - [ ] Create `src/envars/openbao_kms.py`.
     - [ ] Implement authentication (Token-based initially).
@@ -16,7 +16,7 @@
     - [ ] Implement `decrypt` method.
 - [~] Task: Integrate \`OpenBaoKMS\` into the main KMS factory.
     - [ ] Update \`src/envars/kms_factory.py\` (or equivalent) to instantiate \`OpenBaoKMS\` when the provider is 'openbao'.
-- [ ] Task: Conductor - User Manual Verification 'Core Implementation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Core Implementation' (Protocol in workflow.md)
 
 ## Phase 3: CLI and Testing
 - [ ] Task: Update CLI commands to support Openbao.
