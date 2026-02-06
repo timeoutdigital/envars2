@@ -1,7 +1,7 @@
 # Implementation Plan - Add Openbao as a KMS provider
 
 ## Phase 1: Setup and Configuration
-- [ ] Task: Create a reproduction test case that fails because Openbao is not yet supported.
+- [x] Task: Create a reproduction test case that fails because Openbao is not yet supported. [eba97d1]
     - [ ] Create a test in `tests/test_openbao_kms.py` that attempts to initialize and use an Openbao KMS provider.
 - [ ] Task: Update `envars.yml` schema and model definitions to support Openbao configuration.
     - [ ] Modify `src/envars/models.py` to include `OpenBaoConfig`.
