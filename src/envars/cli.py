@@ -279,6 +279,15 @@ def add_env_var(
                 "[bold red]Error:[/] Cannot use 'parameter_store:' or 'cloudformation_export:' with a GCP KMS key."
             )
             raise typer.Exit(code=1)
+        if manager.cloud_provider == "openbao" and (
+            var_value.startswith("gcp_secret_manager:")
+            or var_value.startswith("parameter_store:")
+            or var_value.startswith("cloudformation_export:")
+        ):
+            error_console.print(
+                "[bold red]Error:[/] Cannot use cloud-specific remote prefixes with an Openbao KMS key."
+            )
+            raise typer.Exit(code=1)
 
     # Ensure variable exists
     if var_name not in manager.variables:
@@ -828,6 +837,14 @@ def validate_command(
                     remote_errors.append(
                         f"Variable '{vv.variable_name}' uses 'parameter_store:' or 'cloudformation_export:' with a GCP"
                         " KMS key."
+                    )
+                if manager.cloud_provider == "openbao" and (
+                    vv.value.startswith("gcp_secret_manager:")
+                    or vv.value.startswith("parameter_store:")
+                    or vv.value.startswith("cloudformation_export:")
+                ):
+                    remote_errors.append(
+                        f"Variable '{vv.variable_name}' uses a cloud-specific remote prefix with an Openbao KMS key."
                     )
         if not remote_errors:
             if verbose:
