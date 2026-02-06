@@ -7,6 +7,7 @@
 ## Cloud & Security
 - **AWS Integration:** [Boto3](https://aws.amazon.com/sdk-for-python/) - Used for interacting with AWS KMS and SSM Parameter Store.
 - **GCP Integration:** [Google Cloud SDK](https://cloud.google.com/python/docs/reference) - Used for Google Cloud KMS and Secret Manager.
+- **Openbao Integration:** [hvac](https://hvac.readthedocs.io/en/stable/) or direct API - Used for interacting with Openbao KMS. Configuration uses a simplified `kms_key` string format (e.g., `openbao:<key>`) instead of nested objects.
 
 ## Utilities
 - **Templating:** [Jinja2](https://palletsprojects.com/p/jinja/) - Enables dynamic variable resolution and complex configuration logic.
