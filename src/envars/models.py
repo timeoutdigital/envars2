@@ -181,6 +181,8 @@ class VariableManager:
                 self.cloud_provider = "aws"
             elif kms_key.startswith("projects/"):
                 self.cloud_provider = "gcp"
+            elif kms_key.startswith("openbao:"):
+                self.cloud_provider = "openbao"
         self.default_location_name: str | None = None
 
     def add_variable(self, variable: Variable):
