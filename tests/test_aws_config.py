@@ -12,22 +12,28 @@ from src.envars.aws_ssm import SSMParameterStore
 
 
 def test_default_config_is_bounded():
-    """The shared config caps timeouts and retries well below botocore's defaults (60s/60s/5)."""
+    """The shared config caps timeouts and retries well below botocore's defaults (60s/60s/5).
+
+    Asserts individual keys rather than full-dict equality on ``retries``: botocore rewrites
+    that dict in place when a client is built from the config (``max_attempts`` becomes
+    ``total_max_attempts``), so an equality assertion would be order- and version-fragile.
+    """
     cfg = aws_config.AWS_CLIENT_CONFIG
     assert cfg.connect_timeout == 3
     assert cfg.read_timeout == 5
-    assert cfg.retries == {"max_attempts": 2, "mode": "standard"}
+    assert cfg.retries["mode"] == "standard"
 
 
-def test_resolved_client_makes_three_total_attempts():
+def test_default_makes_three_total_attempts():
     """max_attempts=2 resolves to 3 total HTTP attempts (1 initial + 2 retries).
 
     botocore treats retries.max_attempts as the retry count, so total_max_attempts = N + 1
     (verified against botocore 1.39.4). Pinning the resolved value keeps the ~300s -> ~17s
     worst case from silently regressing if that mapping ever changes, and makes the PR's
-    "3 total attempts" claim executable.
+    "3 total attempts" claim executable. Built from a fresh _build_config() so botocore's
+    in-place rewrite of retries doesn't leak into the shared AWS_CLIENT_CONFIG other tests read.
     """
-    client = boto3.client("sts", region_name="eu-west-1", config=aws_config.AWS_CLIENT_CONFIG)
+    client = boto3.client("sts", region_name="eu-west-1", config=aws_config._build_config())
     assert client.meta.config.retries["total_max_attempts"] == 3
 
 
