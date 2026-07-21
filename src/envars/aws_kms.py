@@ -3,13 +3,15 @@ import base64
 import boto3
 from botocore.exceptions import ClientError
 
+from .aws_config import AWS_CLIENT_CONFIG
+
 
 class AWSKMSAgent:
     """A class to handle AWS KMS operations."""
 
     def __init__(self, region_name: str | None = None):
         """Initializes the KMS client."""
-        self.kms_client = boto3.client("kms", region_name=region_name)
+        self.kms_client = boto3.client("kms", region_name=region_name, config=AWS_CLIENT_CONFIG)
 
     def encrypt(self, data: str, key_id: str, encryption_context: dict[str, str]) -> str:
         """Encrypts data using the specified KMS key."""
