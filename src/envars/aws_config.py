@@ -26,7 +26,7 @@ def _int_env(name: str, default: int) -> int:
 
 
 def _build_config() -> Config:
-    """Builds the bounded AWS client config, reading ``ENVARS_AWS_*`` overrides at call time.
+    """Builds the bounded AWS client config from the current ``ENVARS_AWS_*`` environment values.
 
     Bounded so a stalled endpoint fails in seconds, not minutes. botocore treats
     ``retries.max_attempts`` as the RETRY count, so ``max_attempts=2`` resolves to 3 total
@@ -42,4 +42,8 @@ def _build_config() -> Config:
     )
 
 
+# Built once, at import. envars is a short-lived CLI, so reading ENVARS_AWS_* here (from the
+# already-populated process environment) is equivalent to reading them per client — set any
+# overrides in the environment before invoking envars, not after import. Every client is built
+# from this shared instance; call _build_config() directly only if you need a dynamic re-read.
 AWS_CLIENT_CONFIG = _build_config()
