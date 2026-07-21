@@ -25,12 +25,21 @@ def _int_env(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-# Bounded so a stalled endpoint fails in seconds, not minutes. Standard retry mode adds
-# one backoff retry for transient errors while capping the worst case far below botocore's
-# default of read_timeout(60) x legacy 5 attempts = ~300s. A fully-unreachable endpoint
-# means the whole resolve will fail regardless, so we fail fast rather than wait it out.
-AWS_CLIENT_CONFIG = Config(
-    connect_timeout=_int_env("ENVARS_AWS_CONNECT_TIMEOUT", 3),
-    read_timeout=_int_env("ENVARS_AWS_READ_TIMEOUT", 5),
-    retries={"max_attempts": _int_env("ENVARS_AWS_MAX_ATTEMPTS", 2), "mode": "standard"},
-)
+def _build_config() -> Config:
+    """Builds the bounded AWS client config, reading ``ENVARS_AWS_*`` overrides at call time.
+
+    Bounded so a stalled endpoint fails in seconds, not minutes. botocore treats
+    ``retries.max_attempts`` as the RETRY count, so ``max_attempts=2`` resolves to 3 total
+    attempts (1 initial + 2 retries, i.e. ``total_max_attempts=3``); with ``read_timeout=5s``
+    the worst case is ~17s, versus botocore's default of ``read_timeout(60) x legacy 5
+    attempts = ~300s``. A fully-unreachable endpoint fails the whole resolve regardless, so we
+    fail fast rather than wait it out.
+    """
+    return Config(
+        connect_timeout=_int_env("ENVARS_AWS_CONNECT_TIMEOUT", 3),
+        read_timeout=_int_env("ENVARS_AWS_READ_TIMEOUT", 5),
+        retries={"max_attempts": _int_env("ENVARS_AWS_MAX_ATTEMPTS", 2), "mode": "standard"},
+    )
+
+
+AWS_CLIENT_CONFIG = _build_config()

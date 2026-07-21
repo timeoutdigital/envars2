@@ -19,6 +19,29 @@ def test_default_config_is_bounded():
     assert cfg.retries == {"max_attempts": 2, "mode": "standard"}
 
 
+def test_resolved_client_makes_three_total_attempts():
+    """max_attempts=2 resolves to 3 total HTTP attempts (1 initial + 2 retries).
+
+    botocore treats retries.max_attempts as the retry count, so total_max_attempts = N + 1
+    (verified against botocore 1.39.4). Pinning the resolved value keeps the ~300s -> ~17s
+    worst case from silently regressing if that mapping ever changes, and makes the PR's
+    "3 total attempts" claim executable.
+    """
+    client = boto3.client("sts", region_name="eu-west-1", config=aws_config.AWS_CLIENT_CONFIG)
+    assert client.meta.config.retries["total_max_attempts"] == 3
+
+
+def test_env_overrides_flow_through(monkeypatch):
+    """All three ENVARS_AWS_* overrides wire through to the built config, not just read_timeout."""
+    monkeypatch.setenv("ENVARS_AWS_CONNECT_TIMEOUT", "7")
+    monkeypatch.setenv("ENVARS_AWS_READ_TIMEOUT", "11")
+    monkeypatch.setenv("ENVARS_AWS_MAX_ATTEMPTS", "4")
+    client = boto3.client("sts", region_name="eu-west-1", config=aws_config._build_config())
+    assert client.meta.config.connect_timeout == 7
+    assert client.meta.config.read_timeout == 11
+    assert client.meta.config.retries["total_max_attempts"] == 5  # input 4 -> 5 total (N+1)
+
+
 def test_int_env_parses_positive_override(monkeypatch):
     """_int_env returns a valid positive override from the environment."""
     monkeypatch.setenv("ENVARS_AWS_READ_TIMEOUT", "42")
