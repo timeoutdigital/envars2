@@ -1,6 +1,5 @@
 # Envars: Application Config as Code
 
-[![PyPI version](https://badge.fury.io/py/envars2.svg)](https://badge.fury.io/py/envars2)
 [![Documentation Status](https://readthedocs.org/projects/envars/badge/?version=latest)](https://envars.readthedocs.io/en/latest/?badge=latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -23,9 +22,19 @@ Stop juggling `.env` files and start treating your configuration like code.
 
 ## Installation
 
+`envars` is not published to PyPI — install it from this repository. The
+`envars` package on PyPI is an unrelated third-party project.
+
 ```bash
-pip install envars
+# pinned to a release tag (recommended)
+pip install "git+https://github.com/timeoutdigital/envars2@1.0.4"
+
+# or, to add it to a uv-managed project
+uv add "envars @ git+https://github.com/timeoutdigital/envars2@1.0.4"
 ```
+
+Drop the `@1.0.4` to install from the repository's default branch (currently
+`master`). Either form installs the `envars` command.
 
 ## Quick Start
 
@@ -145,8 +154,8 @@ Here are some ideas for future enhancements that could make `envars` even more p
 To set up the development environment, clone the repository and install the dependencies using `uv`:
 
 ```bash
-git clone https://github.com/your-username/envars.git
-cd envars
+git clone https://github.com/timeoutdigital/envars2.git
+cd envars2
 uv sync
 ```
 

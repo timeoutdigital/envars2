@@ -132,7 +132,7 @@ This guide will help new developers get up and running with the `envars2` projec
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/envars2.git
+    git clone https://github.com/timeoutdigital/envars2.git
     cd envars2
     ```
 
