@@ -1,6 +1,5 @@
 # Envars: Application Config as Code
 
-[![PyPI version](https://badge.fury.io/py/envars2.svg)](https://badge.fury.io/py/envars2)
 [![Documentation Status](https://readthedocs.org/projects/envars/badge/?version=latest)](https://envars.readthedocs.io/en/latest/?badge=latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -24,7 +23,7 @@ Stop juggling `.env` files and start treating your configuration like code.
 ## Installation
 
 ```bash
-pip install envars
+pip install git+https://github.com/timeoutdigital/envars2.git
 ```
 
 ## Quick Start

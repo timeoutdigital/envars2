@@ -7,7 +7,7 @@ This tutorial will guide you through the basics of using `envars` to manage your
 First, install `envars` using `pip`:
 
 ```bash
-pip install envars
+pip install git+https://github.com/timeoutdigital/envars2.git
 ```
 
 ## 2. Initialize Your Project
