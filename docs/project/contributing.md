@@ -5,6 +5,8 @@ We welcome contributions from the community! Whether you're fixing a bug, improv
 ## Getting Started
 
 1.  **Clone the repository** locally: `git clone https://github.com/timeoutdigital/envars2.git`
+    Without write access to `timeoutdigital/envars2` you cannot push a branch to it —
+    fork the repository on GitHub first and clone your fork instead.
 2.  **Install dependencies** for development. We use `uv` for package management.
     ```bash
     pip install uv
@@ -39,8 +41,8 @@ uv run pre-commit install
 ## Submitting a Pull Request
 
 1.  **Commit your changes** with a clear and descriptive commit message.
-2.  **Push your branch** to GitHub: `git push origin my-feature-branch`
-3.  **Open a pull request** from your branch to `master`.
+2.  **Push your branch**: `git push origin my-feature-branch` — to your fork, if you cloned one.
+3.  **Open a pull request** from your branch to `master` on `timeoutdigital/envars2`.
 4.  In the pull request description, please explain the changes you made and why.
 
 Thank you for contributing!

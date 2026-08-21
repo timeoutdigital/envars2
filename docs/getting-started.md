@@ -11,7 +11,8 @@ package on PyPI is an unrelated third-party project.)
 pip install "git+https://github.com/timeoutdigital/envars2@1.0.4"
 ```
 
-Drop the `@1.0.4` to track `master`.
+Drop the `@1.0.4` to install from the repository's default branch (currently
+`master`).
 
 ## 2. Initialize Your Project
 

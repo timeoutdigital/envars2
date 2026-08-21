@@ -33,7 +33,8 @@ pip install "git+https://github.com/timeoutdigital/envars2@1.0.4"
 uv add "envars @ git+https://github.com/timeoutdigital/envars2@1.0.4"
 ```
 
-Drop the `@1.0.4` to track `master`. Either form installs the `envars` command.
+Drop the `@1.0.4` to install from the repository's default branch (currently
+`master`). Either form installs the `envars` command.
 
 ## Quick Start
 
