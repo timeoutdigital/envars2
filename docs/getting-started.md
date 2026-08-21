@@ -4,11 +4,14 @@ This tutorial will guide you through the basics of using `envars` to manage your
 
 ## 1. Installation
 
-First, install `envars` using `pip`:
+`envars` is not published to PyPI — install it from GitHub. (The `envars`
+package on PyPI is an unrelated third-party project.)
 
 ```bash
-pip install envars
+pip install "git+https://github.com/timeoutdigital/envars2@1.0.4"
 ```
+
+Drop the `@1.0.4` to track `master`.
 
 ## 2. Initialize Your Project
 
