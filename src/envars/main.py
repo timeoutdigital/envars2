@@ -414,8 +414,13 @@ def _get_resolved_variables(
 
     # Parameter Store and Secret Manager substitution
     if manager.cloud_provider == "aws":
-        ssm_store = SSMParameterStore()
-        cf_exports = CloudFormationExports()
+        needs_aws_lookup = any(
+            isinstance(v, str) and v.startswith(("parameter_store:", "cloudformation_export:"))
+            for v in resolved_vars.values()
+        )
+        if needs_aws_lookup:
+            ssm_store = SSMParameterStore()
+            cf_exports = CloudFormationExports()
         for var_name, value in resolved_vars.items():
             if isinstance(value, str):
                 if value.startswith("parameter_store:"):
@@ -431,7 +436,11 @@ def _get_resolved_variables(
                         raise ValueError(f"Export '{export_name}' not found in CloudFormation exports.")
                     resolved_vars[var_name] = export_value
     elif manager.cloud_provider == "gcp":
-        gcp_secret_manager = GCPSecretManager()
+        needs_gcp_lookup = any(
+            isinstance(v, str) and v.startswith("gcp_secret_manager:") for v in resolved_vars.values()
+        )
+        if needs_gcp_lookup:
+            gcp_secret_manager = GCPSecretManager()
         for var_name, value in resolved_vars.items():
             if isinstance(value, str):
                 if value.startswith("gcp_secret_manager:"):
