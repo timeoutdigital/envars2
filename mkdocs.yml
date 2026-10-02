@@ -17,6 +17,7 @@ nav:
     - Variable Templating: user-guide/04-variable-templating.md
     - Dynamic Variables: user-guide/05-dynamic-variables.md
     - Validation: user-guide/06-validation.md
+    - Migrating from v1: user-guide/07-migrating-from-v1.md
   - API Reference:
     - Library Usage: api-reference/index.md
     - Data Models: api-reference/models.md
