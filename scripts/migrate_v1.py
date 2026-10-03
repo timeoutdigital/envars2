@@ -27,6 +27,7 @@ import yaml
 
 V1_ACCOUNTS = ["master", "sandbox"]
 V2_LOCATION_IDS = {"master": "511042647617", "sandbox": "253613363555"}
+VERIFY_RELEASE = "migrate-v1-verify"
 
 
 class Secret:
@@ -152,10 +153,8 @@ def fix_value(val):
     val_str = str(val)
     if "{{ STAGE }}" in val_str:
         val_str = val_str.replace("{{ STAGE }}", '{{ env.get("ENVARS_ENV") }}')
-    if '{{ RELEASE|default("not-set") }}' in val_str:
-        val_str = val_str.replace('{{ RELEASE|default("not-set") }}', '{{ env.get("RELEASE", "not-set") }}')
-    elif "{{ RELEASE }}" in val_str:
-        val_str = val_str.replace("{{ RELEASE }}", '{{ env.get("RELEASE") }}')
+    val_str = val_str.replace('{{ RELEASE|default("not-set") }}', '{{ env.get("RELEASE", "not-set") }}')
+    val_str = val_str.replace("{{ RELEASE }}", '{{ env.get("RELEASE") }}')
     return val_str
 
 
@@ -268,8 +267,6 @@ def compare(v1, v2):
     for key in sorted(set(v1) | set(v2)):
         if v1.get(key) == v2.get(key):
             continue
-        if key == "RELEASE" and "{{ RELEASE" in str(v1.get(key)) and v2.get(key) == "not-set":
-            continue
         state = "missing in v2" if key not in v2 else "missing in v1" if key not in v1 else "value differs"
         diffs.append(f"  {key}: {state}")
     return diffs
@@ -278,6 +275,8 @@ def compare(v1, v2):
 def verify_migration(args, backup_path, envs, accounts, env):
     """Compare resolved v1 and v2 values for every env x location. Prints key names only, never values."""
     print("\nVerifying migration...")
+    # v1 renders {{ RELEASE }} from RELEASE_SHA, v2 from RELEASE: give both the same value.
+    env = dict(env, RELEASE=VERIFY_RELEASE, RELEASE_SHA=VERIFY_RELEASE)
     run_command([args.envars_v2_cmd, "-f", args.output, "validate"], env)
 
     failed = False
@@ -312,7 +311,11 @@ def migrate(args):
         raise SystemExit(1)
 
     target_app = args.app or config.get("APP", "myapp")
-    target_envs = args.environments.split(",") if args.environments else config.get("ENVIRONMENTS", [])
+    target_envs = (
+        [e.strip() for e in args.environments.split(",") if e.strip()]
+        if args.environments
+        else config.get("ENVIRONMENTS", [])
+    )
     if not target_envs:
         print("Error: no environments (set ENVIRONMENTS in the v1 file or pass --environments).", file=sys.stderr)
         raise SystemExit(1)
@@ -354,6 +357,12 @@ def migrate(args):
 
     print(f"Migration complete. Created {args.output}.")
     verify_migration(args, backup_path, target_envs, locations or [None], env)
+    if locations:
+        print(
+            f"\nNote: the v2 file has locations ({', '.join(locations)}) with AWS account IDs. With a GCP KMS key, "
+            "get_env() matches locations against the GCP project, so it cannot find the location by itself: "
+            'pass it, for example get_env(env=env, loc="master").'
+        )
     if uses_stage_template(raw_v1_data):
         print(
             '\nNote: {{ STAGE }} became {{ env.get("ENVARS_ENV") }}. The envars CLI sets ENVARS_ENV, '

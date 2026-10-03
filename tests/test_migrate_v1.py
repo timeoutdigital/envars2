@@ -35,6 +35,8 @@ def test_fix_value_and_stage_detection():
     assert m.fix_value("{{ STAGE }}-x") == '{{ env.get("ENVARS_ENV") }}-x'
     assert m.fix_value('{{ RELEASE|default("not-set") }}') == '{{ env.get("RELEASE", "not-set") }}'
     assert m.fix_value("{{ RELEASE }}") == '{{ env.get("RELEASE") }}'
+    both = m.fix_value('{{ RELEASE|default("not-set") }}/{{ RELEASE }}')
+    assert both == '{{ env.get("RELEASE", "not-set") }}/{{ env.get("RELEASE") }}'
     assert m.fix_value(None) is None
     assert m.uses_stage_template({"environment_variables": {"A": {"default": "x-{{ STAGE }}"}}})
     assert not m.uses_stage_template({"environment_variables": {"A": {"default": "x"}}})
@@ -185,6 +187,32 @@ def test_verify_compares_exact_values_and_prints_key_names_only(monkeypatch, cap
     assert "B: value differs" in out
     assert "C: value differs" in out, "whitespace is significant"
     assert LEAK_CANARY not in out
+
+
+def test_compare_has_no_release_exception():
+    assert m.compare({"RELEASE": "{{ RELEASE }}"}, {"RELEASE": "not-set"}) == ["  RELEASE: value differs"]
+
+
+def test_verify_gives_both_sides_the_same_release(monkeypatch):
+    envs = []
+    monkeypatch.setattr(m, "run_command", lambda *a, **k: SimpleNamespace(stdout=""))
+    monkeypatch.setattr(m, "v1_values", lambda args, path, st, acc, env: envs.append(env) or {})
+    monkeypatch.setattr(m, "v2_values", lambda args, st, acc, env: envs.append(env) or {})
+    args = SimpleNamespace(envars_v1_cmd="v1", envars_v2_cmd="v2", output="out.yml")
+    m.verify_migration(args, "bk", ["prod"], [None], {})
+    assert all(e["RELEASE"] == e["RELEASE_SHA"] == m.VERIFY_RELEASE for e in envs)
+
+
+def test_environments_option_is_stripped(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(m, "extract_data", lambda data, args, envs, accs, env: seen.setdefault("envs", envs) and {})
+    monkeypatch.setattr(m, "run_command", lambda *a, **k: (_ for _ in ()).throw(SystemExit(0)))
+    v1_file = tmp_path / "envars.yml"
+    v1_file.write_text(yaml.safe_dump({"configuration": {"APP": "x"}, "environment_variables": {}}))
+    argv = ["--v1-file", str(v1_file), "--output", str(tmp_path / "o.yml"), "--envars-v2-cmd", "e", "--kms-key", "k"]
+    with pytest.raises(SystemExit):
+        m.migrate(m.parse_args([*argv, "--environments", "dev, prod ,"]))
+    assert seen["envs"] == ["dev", "prod"]
 
 
 def test_migrate_rejects_no_environments(tmp_path):

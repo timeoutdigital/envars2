@@ -44,8 +44,10 @@ When you see `Verification SUCCESS`, move `envars.yml.v2` to `envars.yml` and de
 
 The application must then read its settings with envars2. For a data-app, replace the `envars print --decrypt` subprocess with `get_env(env=env)` from `envars.main` (see [Library Usage](../api-reference/index.md)). Then:
 
-- change `requirements` from the v1 package to `envars2`;
+- change the requirement from envars v1 to envars2. The package name is `envars` in both, so use the Git requirement from the README, for example `envars @ git+https://github.com/timeoutdigital/envars2@1.0.4` (or `git+https://github.com/timeoutdigital/envars2@1.0.4` in `requirements.in`);
 - add the `envars-validate` pre-commit hook;
 - change the CI build so that it installs envars2.
 
 **If the v1 file uses `{{ STAGE }}`:** the script changes it to `{{ env.get("ENVARS_ENV") }}`. The envars CLI sets `ENVARS_ENV`, but `get_env()` does not. So before you call `get_env(env=env)`, set `os.environ["ENVARS_ENV"] = env`. If you do not, the value is `None`. The script prints a note when this applies.
+
+**If the v2 file has locations:** they keep the v1 AWS account IDs. With a GCP KMS key, `get_env()` tries to find the location from the GCP project, and fails. Pass the location: `get_env(env=env, loc="master")`. The script prints a note when this applies. Data-apps have no locations.
