@@ -16,6 +16,7 @@ Example:
 """
 
 import argparse
+import json
 import os
 import shutil
 import subprocess  # noqa: S404
@@ -68,26 +69,45 @@ def redact(cmd):
     return " ".join(shown)
 
 
-def run_command(cmd, env, verbose=True):
-    """Run cmd and stop the migration on failure. Output that may hold values is never printed."""
+def run_command(cmd, env, verbose=True, show_stderr=True):
+    """Run cmd and stop the migration on failure.
+
+    Set show_stderr=False for any command that handles values: its error text (for example a
+    template error) can quote part of a decrypted value.
+    """
     if verbose:
         print(f"Running: {redact(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)  # noqa: S603
     if result.returncode != 0:
         print(f"Error: command failed ({result.returncode}): {redact(cmd)}", file=sys.stderr)
-        print(f"Stderr: {result.stderr}", file=sys.stderr)
+        if show_stderr:
+            print(f"Stderr: {result.stderr}", file=sys.stderr)
+        else:
+            print("Stderr hidden: this command handles values. Re-run it by hand to see the error.", file=sys.stderr)
         raise SystemExit(1)
     return result
 
 
-def parse_env_output(output):
-    """Parse KEY=value lines into a dict."""
-    values = {}
-    for line in output.splitlines():
-        if "=" in line:
-            key, val = line.split("=", 1)
-            values[key.strip()] = val.strip()
-    return values
+def _as_str(value):
+    return None if value is None else str(value)
+
+
+def v1_values(args, path, stage, account, env):
+    """Return the resolved v1 values for stage (and account), losslessly, from `envars print -y`."""
+    cmd = [args.envars_v1_cmd, "-f", path, "print", "-d", "-y", "-e", stage]
+    if account:
+        cmd.extend(["-a", account])
+    out = yaml.safe_load(run_command(cmd, env, verbose=False, show_stderr=False).stdout) or {}
+    return {k: _as_str(v) for k, v in (out.get("envars") or {}).items()}
+
+
+def v2_values(args, stage, account, env):
+    """Return the resolved v2 values for stage (and location), losslessly, from `envars output --format json`."""
+    cmd = [args.envars_v2_cmd, "-f", args.output, "output", "-e", stage, "--format", "json"]
+    if account:
+        cmd.extend(["-l", account])
+    out = json.loads(run_command(cmd, env, verbose=False, show_stderr=False).stdout)
+    return {k: _as_str(v) for k, v in out["envars"].items()}
 
 
 def has_secrets(node):
@@ -106,28 +126,22 @@ def uses_account(node, account):
     return False
 
 
-def extract_data(data, args, env):
-    """Decrypt every env and env:account combination the file needs. Skipped if there are no secrets."""
+def extract_data(data, args, target_envs, accounts, env):
+    """Decrypt every target env and env:account the file needs. Skipped if there are no secrets."""
     original_vars = data.get("environment_variables", {})
-    envs = data.get("configuration", {}).get("ENVIRONMENTS", [])
     extracted = {var: {} for var in original_vars}
     if not has_secrets(original_vars):
         print("No !secret values: nothing to decrypt.", file=sys.stderr)
         return extracted
 
-    accounts = [a for a in V1_ACCOUNTS if uses_account(original_vars, a)]
-    for stage in envs:
+    for stage in target_envs:
         for account in [None, *accounts]:
-            cmd = [args.envars_v1_cmd, "-f", args.v1_file, "print", "-d", "-e", stage]
-            key_suffix = ""
-            if account:
-                cmd.extend(["-a", account])
-                key_suffix = f":{account}"
-            print(f"Fetching decrypted values for {stage}{key_suffix}...", file=sys.stderr)
-            resolved = parse_env_output(run_command(cmd, env, verbose=False).stdout)
+            key = f"{stage}:{account}" if account else stage
+            print(f"Fetching decrypted values for {key}...", file=sys.stderr)
+            resolved = v1_values(args, args.v1_file, stage, account, env)
             for var in extracted:
                 if var in resolved:
-                    extracted[var][f"{stage}{key_suffix}"] = resolved[var]
+                    extracted[var][key] = resolved[var]
     return extracted
 
 
@@ -145,6 +159,17 @@ def fix_value(val):
     return val_str
 
 
+def uses_stage_template(data):
+    """Return True if any plain v1 value uses {{ STAGE }} (it becomes env.get("ENVARS_ENV") in v2)."""
+
+    def walk(node):
+        if isinstance(node, dict):
+            return any(walk(v) for v in node.values())
+        return isinstance(node, str) and "{{ STAGE }}" in node
+
+    return walk(data.get("environment_variables", {}))
+
+
 class V2Writer:
     """Adds values to the v2 file. Secrets go through a mode-600 temp file, not argv."""
 
@@ -156,10 +181,11 @@ class V2Writer:
 
     def add(self, var_name, val, description, stage=None, loc=None, secret=False):
         scope = "/".join(s for s in (stage, loc) if s) or "default"
+        if secret and not val:
+            # None means no decrypted value; "" would be written as an empty encrypted secret.
+            print(f"Error: no decrypted value for secret {var_name} ({scope}).", file=sys.stderr)
+            raise SystemExit(1)
         if val is None:
-            if secret:
-                print(f"Error: no decrypted value for secret {var_name} ({scope}).", file=sys.stderr)
-                raise SystemExit(1)
             print(f"Warning: {var_name} ({scope}) is null in v1, skipped.", file=sys.stderr)
             return
         path = os.path.join(self.tmpdir, "value")
@@ -178,78 +204,88 @@ class V2Writer:
             cmd.extend(["--description", description])
             self.described.add(var_name)
         try:
-            run_command(cmd, self.env)
+            run_command(cmd, self.env, show_stderr=not secret)
         finally:
             if secret and os.path.exists(path):
                 os.remove(path)
 
 
 def write_v2(raw_v1_data, extracted_data, target_envs, writer):
-    """Add every v1 value to the v2 file, scoping secret defaults per environment."""
-    for var_name, env_details in raw_v1_data.get("environment_variables", {}).items():
-        description = "Description for " + var_name
-        if isinstance(env_details, dict) and "description" in env_details:
-            description = env_details["description"]
+    """Add every v1 value to the v2 file.
 
-        # 1. Default
-        v1_default = env_details.get("default") if isinstance(env_details, dict) else env_details
-        if isinstance(v1_default, dict):
-            for loc, val in v1_default.items():
-                is_secret = isinstance(val, Secret)
-                if is_secret:
-                    # Resolve a location-scoped secret default from the first environment.
-                    val = extracted_data[var_name].get(f"{target_envs[0]}:{loc}")
-                writer.add(var_name, fix_value(val), description, loc=loc, secret=is_secret)
-        elif v1_default is not None and not isinstance(v1_default, Secret):
-            # Secrets must be scoped in v2, so a secret default is added per environment below.
-            writer.add(var_name, fix_value(v1_default), description)
+    envars2 needs a secret to be scoped, so an inherited secret default is written for each
+    environment (and location) that has no override of its own, with that scope's own value.
+    """
+    for var_name, details in raw_v1_data.get("environment_variables", {}).items():
+        if not isinstance(details, dict):
+            details = {"default": details}
+        description = details.get("description") or "Description for " + var_name
+        default = details.get("default")
+        values = extracted_data.get(var_name, {})
 
-        # 2. Environment overrides
-        if not isinstance(env_details, dict):
-            continue
+        # 1. Plain defaults. Secret defaults are written per environment below.
+        if isinstance(default, dict):
+            for loc, val in default.items():
+                if not isinstance(val, Secret):
+                    writer.add(var_name, fix_value(val), description, loc=loc)
+        elif default is not None and not isinstance(default, Secret):
+            writer.add(var_name, fix_value(default), description)
+
+        # 2. Environment overrides, then inherited secret defaults
         for stage in target_envs:
-            if stage in env_details:
-                v1_val = env_details[stage]
-                if isinstance(v1_val, dict):
-                    for loc, val in v1_val.items():
+            overridden_locs = set()
+            if stage in details:
+                override = details[stage]
+                if isinstance(override, dict):
+                    for loc, val in override.items():
                         is_secret = isinstance(val, Secret)
-                        if is_secret:
-                            val = extracted_data[var_name].get(f"{stage}:{loc}")
+                        val = values.get(f"{stage}:{loc}") if is_secret else val
                         writer.add(var_name, fix_value(val), description, stage=stage, loc=loc, secret=is_secret)
+                    overridden_locs = set(override)
                 else:
-                    is_secret = isinstance(v1_val, Secret)
-                    val = extracted_data[var_name].get(stage) if is_secret else v1_val
+                    is_secret = isinstance(override, Secret)
+                    val = values.get(stage) if is_secret else override
                     writer.add(var_name, fix_value(val), description, stage=stage, secret=is_secret)
-            elif isinstance(v1_default, Secret):
-                # Propagate a secret default to every environment without its own override.
-                writer.add(
-                    var_name, fix_value(extracted_data[var_name].get(stage)), description, stage=stage, secret=True
-                )
+                    continue  # a scalar override covers every location
+            if isinstance(default, Secret):
+                writer.add(var_name, fix_value(values.get(stage)), description, stage=stage, secret=True)
+            elif isinstance(default, dict):
+                for loc, val in default.items():
+                    if isinstance(val, Secret) and loc not in overridden_locs:
+                        writer.add(
+                            var_name,
+                            fix_value(values.get(f"{stage}:{loc}")),
+                            description,
+                            stage=stage,
+                            loc=loc,
+                            secret=True,
+                        )
+
+
+def compare(v1, v2):
+    """Return the differing keys as "KEY: state" lines. Values are never included."""
+    diffs = []
+    for key in sorted(set(v1) | set(v2)):
+        if v1.get(key) == v2.get(key):
+            continue
+        if key == "RELEASE" and "{{ RELEASE" in str(v1.get(key)) and v2.get(key) == "not-set":
+            continue
+        state = "missing in v2" if key not in v2 else "missing in v1" if key not in v1 else "value differs"
+        diffs.append(f"  {key}: {state}")
+    return diffs
 
 
 def verify_migration(args, backup_path, envs, accounts, env):
-    """Compare resolved v1 and v2 output for every env x location. Prints key names only, never values."""
+    """Compare resolved v1 and v2 values for every env x location. Prints key names only, never values."""
     print("\nVerifying migration...")
     run_command([args.envars_v2_cmd, "-f", args.output, "validate"], env)
 
     failed = False
     for stage in envs:
         for account in accounts:
-            v1_cmd = [args.envars_v1_cmd, "-f", backup_path, "print", "-e", stage, "-d"]
-            v2_cmd = [args.envars_v2_cmd, "-f", args.output, "output", "-e", stage]
-            if account:
-                v1_cmd += ["-a", account]
-                v2_cmd += ["-l", account]
-            v1 = parse_env_output(run_command(v1_cmd, env, verbose=False).stdout)
-            v2 = parse_env_output(run_command(v2_cmd, env, verbose=False).stdout)
-            diffs = []
-            for key in sorted(set(v1) | set(v2)):
-                if v1.get(key) == v2.get(key):
-                    continue
-                if key == "RELEASE" and "{{ RELEASE" in str(v1.get(key)) and v2.get(key) == "not-set":
-                    continue
-                state = "missing in v2" if key not in v2 else "missing in v1" if key not in v1 else "value differs"
-                diffs.append(f"  {key}: {state}")
+            v1 = v1_values(args, backup_path, stage, account, env)
+            v2 = v2_values(args, stage, account, env)
+            diffs = compare(v1, v2)
             label = f"{stage}/{account or '-'}"
             if diffs:
                 failed = True
@@ -260,7 +296,7 @@ def verify_migration(args, backup_path, envs, accounts, env):
     if failed:
         print("Verification FAILED.")
         raise SystemExit(1)
-    print("Verification SUCCESS: v1 and v2 outputs match for every env and location.")
+    print("Verification SUCCESS: v1 and v2 values match exactly for every env and location.")
 
 
 def migrate(args):
@@ -275,17 +311,20 @@ def migrate(args):
         print(f"Error: {args.v1_file} does not appear to be a v1 file. Aborting.", file=sys.stderr)
         raise SystemExit(1)
 
-    extracted_data = extract_data(raw_v1_data, args, env)
+    target_app = args.app or config.get("APP", "myapp")
+    target_envs = args.environments.split(",") if args.environments else config.get("ENVIRONMENTS", [])
+    if not target_envs:
+        print("Error: no environments (set ENVIRONMENTS in the v1 file or pass --environments).", file=sys.stderr)
+        raise SystemExit(1)
+    v1_vars = raw_v1_data.get("environment_variables", {})
+    # Only declare v2 locations for v1 accounts the file actually scopes values by.
+    locations = [a for a in V1_ACCOUNTS if uses_account(v1_vars, a)]
+
+    extracted_data = extract_data(raw_v1_data, args, target_envs, locations, env)
 
     backup_path = f"{args.v1_file}.v1.bk"
     print(f"Backing up {args.v1_file} to {backup_path} (do not commit it)")
     shutil.copy2(args.v1_file, backup_path)
-
-    target_app = args.app or config.get("APP", "myapp")
-    target_envs = args.environments.split(",") if args.environments else config.get("ENVIRONMENTS", [])
-    v1_vars = raw_v1_data.get("environment_variables", {})
-    # Only declare v2 locations for v1 accounts the file actually scopes values by.
-    locations = [a for a in V1_ACCOUNTS if uses_account(v1_vars, a)]
 
     if os.path.exists(args.output):
         print(f"{args.output} exists. Overwriting.")
@@ -315,6 +354,11 @@ def migrate(args):
 
     print(f"Migration complete. Created {args.output}.")
     verify_migration(args, backup_path, target_envs, locations or [None], env)
+    if uses_stage_template(raw_v1_data):
+        print(
+            '\nNote: {{ STAGE }} became {{ env.get("ENVARS_ENV") }}. The envars CLI sets ENVARS_ENV, '
+            "but the library's get_env() does not: set os.environ['ENVARS_ENV'] = env before calling it."
+        )
 
 
 def parse_args(argv=None):

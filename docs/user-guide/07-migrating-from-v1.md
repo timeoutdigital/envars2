@@ -6,10 +6,10 @@
 
 1. It reads the v1 file. If the file has `!secret` values, it decrypts them with envars v1. This needs AWS credentials for the old AWS KMS key.
 2. It makes a new envars2 file with `envars init`, then adds every value with `envars add`.
-   - envars2 needs a secret to be scoped to an environment or a location. So a v1 secret default gets one encrypted value for each environment.
+   - envars2 needs a secret to be scoped to an environment or a location. So an inherited v1 secret default gets one encrypted value for each environment (and location) that has no override of its own, and each one uses that scope's own value.
    - v2 locations are only added for the v1 accounts (`master`, `sandbox`) that the file uses. Data-apps use none.
    - `{{ STAGE }}` and `{{ RELEASE }}` become `env.get(...)`, so that they are not circular.
-3. It runs `envars validate`, then compares the v1 and v2 output for every environment and location. If anything is different, it stops.
+3. It runs `envars validate`. Then it compares the v1 values (`envars print -y`) with the v2 values (`envars output --format json`) for every environment and location. The comparison is exact, so spaces at the start or end of a value and multi-line values are checked too. If anything is different, it stops.
 
 The output goes to `envars.yml.v2`. Your `envars.yml` does not change. The script also writes a copy of the v1 file to `envars.yml.v1.bk`. Do not commit that copy.
 
@@ -19,7 +19,8 @@ The output goes to `envars.yml.v2`. Your `envars.yml` does not change. The scrip
 - Printed commands show `VAR=<hidden>`. The output of `envars print -d` is never printed.
 - If the comparison fails, the script prints the key names and "value differs", not the values.
 - The envars subprocesses get `_TYPER_STANDARD_TRACEBACK=1`. A Typer traceback then cannot show local variables, which can hold decrypted values.
-- If a decrypt fails, or a secret has no value, the script stops. It does not write an empty or `None` secret.
+- If a decrypt fails, or a secret has no value or an empty value, the script stops. It does not write an empty or `None` secret.
+- When a command that handles values fails, the script does not print its error text, because the text can quote part of a value. Run that command by hand to see the error.
 
 ## How to run it
 
@@ -34,7 +35,8 @@ AWS_PROFILE=TOMaster AWS_REGION=eu-west-1 python scripts/migrate_v1.py \
 
 - `--kms-key` is required. Use `tog-data-apps` for data-apps and `tog-gp-apps` for gp apps. The key controls who can decrypt the secrets later. For example, the Composer service accounts can decrypt only with `tog-data-apps`.
 - `--quota-project tog-prod-sec-core-0`: use this if KMS calls fail with `SERVICE_DISABLED` / "API has not been used in project …". This happens when your ADC default quota project has the KMS API disabled.
-- `--v1-file`, `--output`, `--app` and `--environments` change the defaults.
+- `--environments` migrates (and decrypts) only the environments you name.
+- `--v1-file`, `--output` and `--app` change the defaults.
 
 When you see `Verification SUCCESS`, move `envars.yml.v2` to `envars.yml` and delete `envars.yml.v1.bk`.
 
@@ -45,3 +47,5 @@ The application must then read its settings with envars2. For a data-app, replac
 - change `requirements` from the v1 package to `envars2`;
 - add the `envars-validate` pre-commit hook;
 - change the CI build so that it installs envars2.
+
+**If the v1 file uses `{{ STAGE }}`:** the script changes it to `{{ env.get("ENVARS_ENV") }}`. The envars CLI sets `ENVARS_ENV`, but `get_env()` does not. So before you call `get_env(env=env)`, set `os.environ["ENVARS_ENV"] = env`. If you do not, the value is `None`. The script prints a note when this applies.
