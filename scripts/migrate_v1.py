@@ -153,8 +153,11 @@ def fix_value(val):
     val_str = str(val)
     if "{{ STAGE }}" in val_str:
         val_str = val_str.replace("{{ STAGE }}", '{{ env.get("ENVARS_ENV") }}')
-    val_str = val_str.replace('{{ RELEASE|default("not-set") }}', '{{ env.get("RELEASE", "not-set") }}')
-    val_str = val_str.replace("{{ RELEASE }}", '{{ env.get("RELEASE") }}')
+    # v1 rendered {{ RELEASE }} from RELEASE_SHA. Keep that input, and accept RELEASE too.
+    val_str = val_str.replace(
+        '{{ RELEASE|default("not-set") }}', '{{ env.get("RELEASE") or env.get("RELEASE_SHA", "not-set") }}'
+    )
+    val_str = val_str.replace("{{ RELEASE }}", '{{ env.get("RELEASE") or env.get("RELEASE_SHA") }}')
     return val_str
 
 
@@ -300,8 +303,9 @@ def compare(v1, v2):
 def verify_migration(args, backup_path, envs, accounts, env):
     """Compare resolved v1 and v2 values for every env x location. Prints key names only, never values."""
     print("\nVerifying migration...")
-    # v1 renders {{ RELEASE }} from RELEASE_SHA, v2 from RELEASE: give both the same value.
-    env = dict(env, RELEASE=VERIFY_RELEASE, RELEASE_SHA=VERIFY_RELEASE)
+    # Only the v1 input (RELEASE_SHA) is set, so the check proves that the old input still works.
+    env = {k: v for k, v in env.items() if k != "RELEASE"}
+    env["RELEASE_SHA"] = VERIFY_RELEASE
     run_command([args.envars_v2_cmd, "-f", args.output, "validate"], env)
 
     failed = False

@@ -1,6 +1,8 @@
+import json
 import os
 import shutil
 import stat
+import subprocess  # noqa: S404
 import sys
 import textwrap
 from types import SimpleNamespace
@@ -33,10 +35,11 @@ def test_has_secrets_and_uses_account():
 
 def test_fix_value_and_stage_detection():
     assert m.fix_value("{{ STAGE }}-x") == '{{ env.get("ENVARS_ENV") }}-x'
-    assert m.fix_value('{{ RELEASE|default("not-set") }}') == '{{ env.get("RELEASE", "not-set") }}'
-    assert m.fix_value("{{ RELEASE }}") == '{{ env.get("RELEASE") }}'
-    both = m.fix_value('{{ RELEASE|default("not-set") }}/{{ RELEASE }}')
-    assert both == '{{ env.get("RELEASE", "not-set") }}/{{ env.get("RELEASE") }}'
+    with_default = '{{ env.get("RELEASE") or env.get("RELEASE_SHA", "not-set") }}'
+    plain = '{{ env.get("RELEASE") or env.get("RELEASE_SHA") }}'
+    assert m.fix_value('{{ RELEASE|default("not-set") }}') == with_default
+    assert m.fix_value("{{ RELEASE }}") == plain
+    assert m.fix_value('{{ RELEASE|default("not-set") }}/{{ RELEASE }}') == f"{with_default}/{plain}"
     assert m.fix_value(None) is None
     assert m.uses_stage_template({"environment_variables": {"A": {"default": "x-{{ STAGE }}"}}})
     assert not m.uses_stage_template({"environment_variables": {"A": {"default": "x"}}})
@@ -213,14 +216,14 @@ def test_compare_has_no_release_exception():
     assert m.compare({"RELEASE": "{{ RELEASE }}"}, {"RELEASE": "not-set"}) == ["  RELEASE: value differs"]
 
 
-def test_verify_gives_both_sides_the_same_release(monkeypatch):
+def test_verify_sets_only_the_v1_release_input(monkeypatch):
     envs = []
     monkeypatch.setattr(m, "run_command", lambda *a, **k: SimpleNamespace(stdout=""))
     monkeypatch.setattr(m, "v1_values", lambda args, path, st, acc, env: envs.append(env) or {})
     monkeypatch.setattr(m, "v2_values", lambda args, st, acc, env: envs.append(env) or {})
     args = SimpleNamespace(envars_v1_cmd="v1", envars_v2_cmd="v2", output="out.yml")
-    m.verify_migration(args, "bk", ["prod"], [None], {})
-    assert all(e["RELEASE"] == e["RELEASE_SHA"] == m.VERIFY_RELEASE for e in envs)
+    m.verify_migration(args, "bk", ["prod"], [None], {"RELEASE": "from-caller"})
+    assert envs and all(e["RELEASE_SHA"] == m.VERIFY_RELEASE and "RELEASE" not in e for e in envs)
 
 
 def test_environments_option_is_stripped(tmp_path, monkeypatch):
@@ -245,13 +248,15 @@ def test_migrate_rejects_no_environments(tmp_path):
 # A small stand-in for envars v1 `print -y`: resolves default + env override, dumps {"envars": ...}.
 FAKE_V1 = textwrap.dedent(
     """\
-    import sys, yaml
+    import os, sys, yaml
     args = sys.argv[1:]
     data = yaml.safe_load(open(args[args.index("-f") + 1]))
     env = args[args.index("-e") + 1]
     out = {}
     for name, details in data["environment_variables"].items():
         val = details.get(env, details.get("default")) if isinstance(details, dict) else details
+        if isinstance(val, str):
+            val = val.replace('{{ RELEASE|default("not-set") }}', os.environ.get("RELEASE_SHA", "not-set"))
         if val is not None:
             out[name] = val
     print(yaml.dump({"envars": out}, default_flow_style=False))
@@ -272,6 +277,7 @@ def test_end_to_end_plain_file(tmp_path):
                     "LOG_LEVEL": {"description": "Log level", "default": "INFO", "prod": "WARNING"},
                     "BANNER": {"description": "Multi-line value", "default": "line one\nline two"},
                     "PADDED": {"description": "Significant spaces", "default": "  keep me  "},
+                    "RELEASE": {"description": "Release", "default": '{{ RELEASE|default("not-set") }}'},
                 },
             }
         )
@@ -305,3 +311,32 @@ def test_end_to_end_plain_file(tmp_path):
     assert out["environment_variables"]["LOG_LEVEL"]["prod"] == "WARNING"
     assert out["environment_variables"]["BANNER"]["default"] == "line one\nline two"
     assert out["environment_variables"]["PADDED"]["default"] == "  keep me  "
+    assert "RELEASE_SHA" in out["environment_variables"]["RELEASE"]["default"]
+
+
+@pytest.mark.skipif(shutil.which("envars") is None, reason="envars2 CLI not on PATH")
+@pytest.mark.parametrize(
+    ("set_env", "expected"),
+    [({"RELEASE_SHA": "abc"}, "abc"), ({"RELEASE": "def"}, "def"), ({}, "not-set")],
+)
+def test_release_template_renders_from_either_input(tmp_path, set_env, expected):
+    v2 = tmp_path / "envars.yml"
+    v2.write_text(
+        yaml.safe_dump(
+            {
+                "configuration": {"app": "x", "environments": ["prod"]},
+                "environment_variables": {
+                    "RELEASE": {"description": "r", "default": m.fix_value('{{ RELEASE|default("not-set") }}')}
+                },
+            }
+        )
+    )
+    env = {k: v for k, v in os.environ.items() if k not in ("RELEASE", "RELEASE_SHA")}
+    out = subprocess.run(  # noqa: S603
+        [shutil.which("envars") or "envars", "-f", str(v2), "output", "-e", "prod", "--format", "json"],
+        capture_output=True,
+        text=True,
+        env={**env, **set_env},
+        check=True,
+    )
+    assert json.loads(out.stdout)["envars"]["RELEASE"] == expected

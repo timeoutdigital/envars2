@@ -8,7 +8,7 @@
 2. It makes a new envars2 file with `envars init`, then adds every value with `envars add`.
    - envars2 needs a secret to be scoped to an environment or a location. So an inherited v1 secret default gets one encrypted value for each environment (and location) that has no override of its own, and each one uses that scope's own value.
    - v2 locations are only added for the v1 accounts (`master`, `sandbox`) that the file uses. Data-apps use none.
-   - `{{ STAGE }}` and `{{ RELEASE }}` become `env.get(...)`, so that they are not circular.
+   - `{{ STAGE }}` and `{{ RELEASE }}` become `env.get(...)`, so that they are not circular. `{{ RELEASE }}` becomes `env.get("RELEASE") or env.get("RELEASE_SHA")`: v1 read `RELEASE_SHA`, and that input still works.
 3. It runs `envars validate`. Then it compares the v1 values (`envars print -y`) with the v2 values (`envars output --format json`) for every environment and location. The comparison is exact, so spaces at the start or end of a value and multi-line values are checked too. If anything is different, it stops.
 
 The output goes to `envars.yml.v2`. Your `envars.yml` does not change. The script also writes a copy of the v1 file to `envars.yml.v1.bk`. Do not commit that copy.
