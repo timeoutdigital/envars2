@@ -189,6 +189,26 @@ def test_verify_compares_exact_values_and_prints_key_names_only(monkeypatch, cap
     assert LEAK_CANARY not in out
 
 
+def test_compare_treats_missing_and_null_as_different():
+    assert m.compare({"OPTIONAL": None}, {}) == ["  OPTIONAL: missing in v2"]
+    assert m.compare({"OPTIONAL": None}, {"OPTIONAL": None}) == []
+
+
+def test_write_v2_writes_overrides_before_defaults():
+    raw = {
+        "environment_variables": {
+            "A": {"default": "{{ B }}"},
+            "B": {"default": "{{ A }}", "prod": "fixed", "staging": {"master": "loc-fixed"}},
+        }
+    }
+    w = FakeWriter()
+    m.write_v2(raw, {}, ["prod", "staging"], w)
+    order = [(a[0], a[2], a[3]) for a in w.added]
+    assert order.index(("B", "staging", "master")) < order.index(("B", "prod", None))
+    assert order.index(("B", "prod", None)) < order.index(("B", None, None))
+    assert order.index(("B", "prod", None)) < order.index(("A", None, None))
+
+
 def test_compare_has_no_release_exception():
     assert m.compare({"RELEASE": "{{ RELEASE }}"}, {"RELEASE": "not-set"}) == ["  RELEASE: value differs"]
 

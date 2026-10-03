@@ -209,12 +209,37 @@ class V2Writer:
                 os.remove(path)
 
 
+class _Collector:
+    """Records add() calls so that they can be written later in a different order."""
+
+    def __init__(self):
+        self.calls = []
+
+    def add(self, var_name, val, description, stage=None, loc=None, secret=False):
+        self.calls.append((var_name, val, description, stage, loc, secret))
+
+
+def _specificity(call):
+    """env+loc first, then env, then loc, then default."""
+    stage, loc = call[3], call[4]
+    return 0 if stage and loc else 1 if stage else 2 if loc else 3
+
+
 def write_v2(raw_v1_data, extracted_data, target_envs, writer):
-    """Add every v1 value to the v2 file.
+    """Add every v1 value to the v2 file, most specific scope first.
 
     envars2 needs a secret to be scoped, so an inherited secret default is written for each
     environment (and location) that has no override of its own, with that scope's own value.
+    `envars add` checks template dependencies as it goes, so overrides are written before the
+    defaults they replace: a default alone can look circular until its override exists.
     """
+    collector = _Collector()
+    _collect_v2(raw_v1_data, extracted_data, target_envs, collector)
+    for var_name, val, description, stage, loc, secret in sorted(collector.calls, key=_specificity):
+        writer.add(var_name, val, description, stage=stage, loc=loc, secret=secret)
+
+
+def _collect_v2(raw_v1_data, extracted_data, target_envs, writer):
     for var_name, details in raw_v1_data.get("environment_variables", {}).items():
         if not isinstance(details, dict):
             details = {"default": details}
@@ -265,7 +290,7 @@ def compare(v1, v2):
     """Return the differing keys as "KEY: state" lines. Values are never included."""
     diffs = []
     for key in sorted(set(v1) | set(v2)):
-        if v1.get(key) == v2.get(key):
+        if key in v1 and key in v2 and v1[key] == v2[key]:
             continue
         state = "missing in v2" if key not in v2 else "missing in v1" if key not in v1 else "value differs"
         diffs.append(f"  {key}: {state}")
