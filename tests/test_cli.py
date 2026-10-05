@@ -1477,3 +1477,75 @@ environment_variables:
             expected_output = f'MY_MULTILINE_SECRET="{escaped_multiline_value}"'
             assert expected_output in result.stdout
             stubber.assert_no_pending_responses()
+
+
+@patch("envars.main.GCPSecretManager")
+def test_plaintext_gcp_file_output_without_gcp_credentials(mock_gcp_secret_manager, tmp_path):
+    mock_gcp_secret_manager.side_effect = Exception("no GCP credentials available")
+
+    initial_content = """
+configuration:
+  kms_key: "projects/my-gcp-project/locations/us-central1/keyRings/my-key-ring/cryptoKeys/my-key"
+  environments:
+    - dev
+  locations:
+    - aws: "123456789012"
+    - gcp: "my-gcp-project"
+environment_variables:
+  MY_VAR:
+    default: "plain-value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev", "--loc", "aws"])
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+    assert output_dict["envars"]["MY_VAR"] == "plain-value"
+    mock_gcp_secret_manager.assert_not_called()
+
+
+@patch("envars.main.CloudFormationExports")
+@patch("envars.main.SSMParameterStore")
+def test_plaintext_aws_file_output_without_aws_credentials(mock_ssm_store, mock_cf_exports, tmp_path):
+    mock_ssm_store.side_effect = Exception("no AWS credentials available")
+    mock_cf_exports.side_effect = Exception("no AWS credentials available")
+
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+  environments:
+    - dev
+environment_variables:
+  MY_VAR:
+    default: "plain-value"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev"])
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+    assert output_dict["envars"]["MY_VAR"] == "plain-value"
+    mock_ssm_store.assert_not_called()
+    mock_cf_exports.assert_not_called()
+
+
+@patch("envars.main.CloudFormationExports")
+@patch("envars.main.SSMParameterStore")
+def test_parameter_store_lookup_does_not_construct_cf_exports_client(mock_ssm_store, mock_cf_exports, tmp_path):
+    mock_ssm_instance = mock_ssm_store.return_value
+    mock_ssm_instance.get_parameter.return_value = "ssm_value"
+    mock_cf_exports.side_effect = Exception("CloudFormationExports should not be constructed")
+
+    initial_content = """
+configuration:
+  kms_key: "arn:aws:kms:us-east-1:123456789012:key/mrk-12345"
+  environments:
+    - dev
+environment_variables:
+  MY_VAR:
+    default: "parameter_store:/my/parameter"
+"""
+    file_path = create_envars_file(tmp_path, initial_content)
+    result = runner.invoke(app, ["--file", file_path, "output", "--format", "yaml", "--env", "dev"])
+    assert result.exit_code == 0
+    output_dict = yaml.safe_load(result.stdout)
+    assert output_dict["envars"]["MY_VAR"] == "ssm_value"
+    mock_cf_exports.assert_not_called()
