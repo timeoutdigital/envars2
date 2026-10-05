@@ -1,9 +1,11 @@
 import boto3
 
+from .aws_config import AWS_CLIENT_CONFIG
+
 
 class CloudFormationExports:
     def __init__(self, region_name: str | None = None):
-        self.client = boto3.client("cloudformation", region_name=region_name)
+        self.client = boto3.client("cloudformation", region_name=region_name, config=AWS_CLIENT_CONFIG)
         self._exports_cache: dict[str, str] | None = None
 
     def _populate_exports_cache(self):
