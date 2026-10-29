@@ -414,27 +414,33 @@ def _get_resolved_variables(
 
     # Parameter Store and Secret Manager substitution
     if manager.cloud_provider == "aws":
-        ssm_store = SSMParameterStore()
-        cf_exports = CloudFormationExports()
+        ssm_store = None
+        cf_exports = None
         for var_name, value in resolved_vars.items():
             if isinstance(value, str):
                 if value.startswith("parameter_store:"):
+                    if ssm_store is None:
+                        ssm_store = SSMParameterStore()
                     param_name = value.split(":", 1)[1]
                     param_value = ssm_store.get_parameter(param_name)
                     if param_value is None:
                         raise ValueError(f"Parameter '{param_name}' not found in Parameter Store.")
                     resolved_vars[var_name] = param_value
                 elif value.startswith("cloudformation_export:"):
+                    if cf_exports is None:
+                        cf_exports = CloudFormationExports()
                     export_name = value.split(":", 1)[1]
                     export_value = cf_exports.get_export_value(export_name)
                     if export_value is None:
                         raise ValueError(f"Export '{export_name}' not found in CloudFormation exports.")
                     resolved_vars[var_name] = export_value
     elif manager.cloud_provider == "gcp":
-        gcp_secret_manager = GCPSecretManager()
+        gcp_secret_manager = None
         for var_name, value in resolved_vars.items():
             if isinstance(value, str):
                 if value.startswith("gcp_secret_manager:"):
+                    if gcp_secret_manager is None:
+                        gcp_secret_manager = GCPSecretManager()
                     secret_name = value.split(":", 1)[1]
                     secret_value = gcp_secret_manager.access_secret_version(secret_name)
                     if secret_value is None:
